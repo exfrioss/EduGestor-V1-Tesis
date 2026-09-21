@@ -1,0 +1,18 @@
+@"
+# EduGestor V1.0
+
+Sistema Integral de Gestión y Planificación Docente.
+
+Proyecto de tesis.
+
+## Estado
+Desarrollo de V1.0 iniciado el 21/09/2026.
+
+## Arquitectura prevista
+- React + TypeScript
+- Node.js + Express + TypeScript
+- PostgreSQL
+- Prisma ORM
+- Docker
+- OpenAI API
+"@ | Out-File -Encoding utf8 README.md
