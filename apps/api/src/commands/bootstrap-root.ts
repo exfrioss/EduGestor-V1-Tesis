@@ -6,6 +6,7 @@ import { AccountKind, AuditActorKind, AuditOutcome } from '@prisma/client';
 import { z } from 'zod';
 import { createPrismaClient } from '../database.js';
 import { hashPassword } from '../security/password.js';
+import { normalizeLogin } from '../modules/users/normalize-login.js';
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url));
 config({ path: resolve(currentDirectory, '../../../../.env'), quiet: true });
@@ -16,8 +17,6 @@ const bootstrapEnvironmentSchema = z.object({
   BOOTSTRAP_ROOT_PASSWORD: z.string().min(12).max(1_000),
   BOOTSTRAP_ROOT_REASON: z.string().trim().min(1).max(1_000),
 });
-
-export const normalizeLogin = (login: string): string => login.trim().toLocaleLowerCase('es-PY');
 
 export const bootstrapRoot = async (source: NodeJS.ProcessEnv = process.env) => {
   const environment = bootstrapEnvironmentSchema.parse(source);

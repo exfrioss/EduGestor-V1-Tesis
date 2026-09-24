@@ -1,4 +1,5 @@
 import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
@@ -9,10 +10,17 @@ import { requestId } from './middleware/request-id.js';
 import { logger as defaultLogger } from './logging/logger.js';
 import type { Logger } from 'pino';
 import { createHealthRouter } from './modules/health/health.router.js';
+import { createAuthRouter } from './modules/auth/auth.router.js';
+import type { PrismaClient } from '@prisma/client';
+import type { AuthConfig } from './config.js';
 
 interface AppOptions {
   allowedOrigins?: string[];
   logger?: Logger;
+  auth?: {
+    client: PrismaClient;
+    config: AuthConfig;
+  };
 }
 
 export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => {
@@ -37,8 +45,12 @@ export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => 
     }),
   );
   app.use(express.json({ limit: '1mb' }));
+  app.use(cookieParser());
 
   app.use(createHealthRouter(database));
+  if (options.auth !== undefined) {
+    app.use('/api/v1/auth', createAuthRouter(options.auth.client, options.auth.config));
+  }
 
   app.use(notFoundHandler);
   app.use(errorHandler);

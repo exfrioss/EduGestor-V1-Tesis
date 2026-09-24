@@ -58,3 +58,31 @@ npm run test -w @edugestor/api
 ```
 
 No se ejecutó Playwright en este checkpoint; no forma parte de la persistencia ni de las fundaciones backend solicitadas.
+
+## Ejecución del 24/09/2026 — autenticación y sesiones Hito 1
+
+Base final aislada: `edugestor_auth_race_20260924`, creada vacía en PostgreSQL 17 y migrada con las dos migraciones versionadas. La corrida final incluye el refuerzo serializable contra carreras entre login y desactivación.
+
+| Verificación | Resultado |
+|---|---|
+| `npm run prisma:validate -w @edugestor/api` | Aprobado |
+| `npm run prisma:generate -w @edugestor/api` | Aprobado |
+| Migración desde base vacía | 2 migraciones aplicadas |
+| Integración con `RUN_DATABASE_TESTS=1` | 6 archivos, 20/20 pruebas aprobadas |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Vite aprobados |
+| `npm test` | Shared 1, API 9 y Web 1 aprobadas; 11 integraciones DB omitidas por defecto |
+
+Cobertura de autenticación ejecutada contra PostgreSQL real:
+
+- Login válido, contraseña incorrecta, usuario inexistente y cuenta desactivada con respuesta uniforme.
+- Emisión de cookie HttpOnly/SameSite y comprobación unitaria de `Secure` en producción.
+- Token opaco aleatorio y persistencia exclusiva de su hash.
+- Sesión válida, expirada, revocada y actualización de `lastSeenAt` sin modificar la expiración absoluta.
+- Logout con revocación y limpieza de cookies.
+- Rechazo de recurso privado sin sesión y de logout autenticado sin CSRF.
+- Revocación de todas las sesiones por desactivación directa de `User` y `Teacher`; rechazo de login docente posterior.
+- Rate limiting de login con secuencia `401, 401, 429` para el límite de prueba.
+- Inspección de respuestas, auditoría y logs para verificar ausencia de contraseña, `passwordHash` y token opaco.
+
+El primer intento final de `prisma generate` encontró `EPERM` porque un proceso Node antiguo del propio repositorio mantenía cargado el DLL de Prisma. Se identificó ese proceso por el módulo abierto, se detuvo únicamente ese PID y la repetición aprobó. No queda un defecto de código asociado.

@@ -16,6 +16,7 @@ const database = createDatabaseProbe(prisma);
 const app = createApp(database, {
   allowedOrigins: environment.corsAllowedOrigins,
   logger,
+  auth: { client: prisma, config: environment.auth },
 });
 
 const server = app.listen(environment.API_PORT, '0.0.0.0', () => {

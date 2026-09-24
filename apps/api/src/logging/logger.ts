@@ -1,6 +1,6 @@
-import pino, { type LevelWithSilent } from 'pino';
+import pino, { type DestinationStream, type LevelWithSilent } from 'pino';
 
-export const createLogger = (level: LevelWithSilent) => pino({
+export const createLogger = (level: LevelWithSilent, destination?: DestinationStream) => pino({
   level,
   redact: {
     paths: [
@@ -18,6 +18,6 @@ export const createLogger = (level: LevelWithSilent) => pino({
     ],
     censor: '[REDACTED]',
   },
-});
+}, destination);
 
 export const logger = createLogger(process.env.NODE_ENV === 'test' ? 'silent' : 'info');
