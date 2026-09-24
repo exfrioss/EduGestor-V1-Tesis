@@ -1,0 +1,22 @@
+{
+  "name": "edugestor-v1",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "engines": { "node": ">=22.0.0", "npm": ">=10.0.0" },
+  "scripts": {
+    "build": "npm run build -w @edugestor/shared && npm run build -w @edugestor/api && npm run build -w @edugestor/web",
+    "dev": "npm run build -w @edugestor/shared && concurrently -n shared,api,web -c yellow,cyan,green \"npm run dev -w @edugestor/shared\" \"npm run dev -w @edugestor/api\" \"npm run dev -w @edugestor/web\"",
+    "typecheck": "npm run typecheck -w @edugestor/shared && npm run typecheck -w @edugestor/api && npm run typecheck -w @edugestor/web",
+    "test": "npm run test -w @edugestor/shared && npm run test -w @edugestor/api && npm run test -w @edugestor/web",
+    "test:e2e": "playwright test",
+    "prisma:generate": "npm run prisma:generate -w @edugestor/api",
+    "prisma:validate": "npm run prisma:validate -w @edugestor/api"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "concurrently": "^9.2.1",
+    "typescript": "^5.9.2",
+    "vitest": "5.0.1"
+  }
+}
