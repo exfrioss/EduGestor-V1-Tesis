@@ -16,4 +16,4 @@ RUN npm run prisma:generate --workspace=@edugestor/api \
     && npm run build --workspace=@edugestor/api
 
 EXPOSE 3000
-CMD ["npm", "run", "start", "--workspace=@edugestor/api"]
+CMD ["sh", "-c", "npm run prisma:migrate:deploy --workspace=@edugestor/api && npm run start --workspace=@edugestor/api"]

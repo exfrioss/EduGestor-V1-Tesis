@@ -1,29 +1,47 @@
 import cors from 'cors';
 import express from 'express';
-import { healthResponseSchema } from '@edugestor/shared';
+import helmet from 'helmet';
+import { pinoHttp } from 'pino-http';
 import type { DatabaseProbe } from './database.js';
+import { errorHandler } from './middleware/error-handler.js';
+import { notFoundHandler } from './middleware/not-found.js';
+import { requestId } from './middleware/request-id.js';
+import { logger as defaultLogger } from './logging/logger.js';
+import type { Logger } from 'pino';
+import { createHealthRouter } from './modules/health/health.router.js';
 
-export const createApp = (database: DatabaseProbe) => {
+interface AppOptions {
+  allowedOrigins?: string[];
+  logger?: Logger;
+}
+
+export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => {
   const app = express();
+  const allowedOrigins = options.allowedOrigins ?? ['http://localhost:5173'];
+  const logger = options.logger ?? defaultLogger;
 
   app.disable('x-powered-by');
-  app.use(cors());
-  app.use(express.json());
+  app.use(requestId);
+  app.use(pinoHttp({ logger, autoLogging: true }));
+  app.use(helmet());
+  app.use(
+    cors({
+      credentials: true,
+      origin(origin, callback) {
+        if (origin === undefined || allowedOrigins.includes(origin)) {
+          callback(null, true);
+          return;
+        }
+        callback(null, false);
+      },
+    }),
+  );
+  app.use(express.json({ limit: '1mb' }));
 
-  app.get('/health', async (_request, response) => {
-    try {
-      const available = await database.checkAvailability();
-      const body = healthResponseSchema.parse({
-        status: available ? 'ok' : 'degraded',
-        database: available ? 'available' : 'unavailable',
-      });
-      response.status(available ? 200 : 503).json(body);
-    } catch {
-      response.status(503).json(
-        healthResponseSchema.parse({ status: 'degraded', database: 'unavailable' }),
-      );
-    }
-  });
+  app.use(createHealthRouter(database));
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
 
   return app;
 };

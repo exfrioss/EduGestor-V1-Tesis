@@ -1,21 +1,15 @@
-import { Pool } from 'pg';
+import { PrismaClient } from '@prisma/client';
 
 export interface DatabaseProbe {
   checkAvailability(): Promise<boolean>;
 }
 
-export const createDatabaseProbe = (connectionString: string): DatabaseProbe => {
-  const pool = new Pool({ connectionString });
+export const createPrismaClient = (datasourceUrl: string): PrismaClient =>
+  new PrismaClient({ datasourceUrl });
 
-  return {
-    async checkAvailability() {
-      const client = await pool.connect();
-      try {
-        await client.query('SELECT 1');
-        return true;
-      } finally {
-        client.release();
-      }
-    },
-  };
-};
+export const createDatabaseProbe = (client: PrismaClient): DatabaseProbe => ({
+  async checkAvailability() {
+    await client.$queryRaw`SELECT 1`;
+    return true;
+  },
+});

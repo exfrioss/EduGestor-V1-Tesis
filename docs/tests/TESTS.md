@@ -1,4 +1,4 @@
-# Pruebas del bootstrap técnico
+# Pruebas técnicas y de persistencia
 
 La infraestructura configura:
 
@@ -7,7 +7,7 @@ La infraestructura configura:
 - Supertest para la API.
 - Playwright para futuras pruebas E2E y una comprobación mínima del bootstrap.
 
-Las pruebas actuales verifican el contrato compartido de salud, la respuesta disponible/degradada de `GET /health` y el renderizado inicial del frontend. No prueban reglas de negocio, porque todavía no se ha definido ni implementado el dominio.
+Las pruebas ordinarias verifican el contrato compartido de salud, la respuesta disponible/degradada de `GET /health`, request ID, errores uniformes, cabeceras Helmet, configuración CORS, hashing de contraseña y el renderizado inicial del frontend.
 
 Comando principal:
 
@@ -28,3 +28,33 @@ npm test
 - Frontend contenedorizado: HTTP 200.
 
 Playwright queda configurado para los recorridos E2E posteriores. Su prueba de navegador no se ejecutó en este bootstrap porque no se instalaron binarios de navegador como parte de esta tarea.
+
+## Ejecución del 24/09/2026 — checkpoint de persistencia Hito 1
+
+Base aislada: `edugestor_hito1_20260924`, creada vacía en PostgreSQL 17 de Docker.
+
+| Verificación | Comando / mecanismo | Resultado |
+|---|---|---|
+| Schema Prisma | `npm run prisma:validate -w @edugestor/api` | Aprobado |
+| Prisma Client | `npm run prisma:generate -w @edugestor/api` | Aprobado |
+| Migración vacía | `npm run prisma:migrate:deploy -w @edugestor/api` | 1 migración aplicada |
+| Estado migración | `prisma migrate status` | Esquema al día |
+| Integración PostgreSQL | `RUN_DATABASE_TESTS=1 npm test -w @edugestor/api` | 4 archivos, 7 pruebas aprobadas |
+| Suite ordinaria | `npm test` | Shared 1, API 5 y Web 1 aprobadas; las 2 de DB se omiten por defecto |
+| TypeScript | `npm run typecheck` | 3 workspaces aprobados |
+| Builds | `npm run build` | Shared, API y Vite aprobados |
+| Bootstrap idempotente | dos ejecuciones de `bootstrap:root` | crea una vez; segunda ejecución no duplica |
+| API compilada | `GET /health` en puerto de prueba | HTTP 200; DB disponible; request ID, CORS y Helmet correctos |
+| Docker Compose | rebuild de `api`, `compose ps`, `/health` | API y PostgreSQL saludables |
+
+Las pruebas de integración cubren creación coherente de institución/año/curso/materia/docente/asignación; rechazo de cruces entre instituciones; año lectivo inválido; segundo año actual; duplicación de concesión activa; ámbito de cursos inconsistente; bloqueo de `RESOURCE_SET`; e inmutabilidad de `AuditLog`.
+
+Para ejecutar las pruebas de DB debe usarse una base desechable ya migrada y definir explícitamente:
+
+```powershell
+$env:RUN_DATABASE_TESTS='1'
+$env:DATABASE_URL='postgresql://usuario:clave@localhost:5432/base_desechable?schema=public'
+npm run test -w @edugestor/api
+```
+
+No se ejecutó Playwright en este checkpoint; no forma parte de la persistencia ni de las fundaciones backend solicitadas.
