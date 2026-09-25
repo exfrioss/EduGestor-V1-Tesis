@@ -190,3 +190,44 @@ La cobertura frontend verifica:
 El E2E construye el frontend, lo sirve con un servidor estático efímero y simula únicamente las respuestas de la API con datos ficticios. Recorre login administrador → institución → docente → año/curso → materia → asignación → logout → login docente → Mis asignaciones → acceso ajeno `403`. Las credenciales de prueba no se persisten y no corresponden a usuarios reales.
 
 La integración PostgreSQL de 56 casos no se repitió porque este checkpoint no altera backend, Prisma ni migraciones. Su resultado estable queda registrado en la sección anterior.
+
+## Ejecución del 25/09/2026 — validación real completa del Hito 1
+
+La corrida final de integración usó la base aislada y vacía `edugestor_hito1_final_20260925_0835` en PostgreSQL 17. La base de demostración `edugestor` se conservó para verificar reinicios y el recorrido real.
+
+| Verificación | Resultado |
+|---|---|
+| `npm run prisma:validate` | Schema válido |
+| `npm run prisma:generate` | Prisma Client 6.12.0 generado |
+| Migración desde base vacía | 4/4 migraciones aplicadas |
+| `prisma migrate status` sobre desarrollo | 4 migraciones; esquema al día |
+| Integración con `RUN_DATABASE_TESTS=1` | 11 archivos, 60/60 pruebas aprobadas |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Vite aprobados; 104 módulos transformados |
+| `npm test` | Shared 1/1, API ordinaria 13/13, Web 8/8 |
+| `npm run test:e2e` | E2E simulado existente 1/1 aprobado |
+| `npm run test:e2e:real` | E2E real 1/1 aprobado |
+| Reinicio `api`/`web` | Health disponible y E2E real nuevamente 1/1 |
+| Consulta PostgreSQL tras reinicio | 2 asignaciones vigentes y 2 auditorías de bootstrap |
+
+El nuevo E2E real no usa `page.route`, mocks ni respuestas sintéticas. Recorre el frontend contenedorizado, las rutas HTTP reales, cookies HttpOnly/CSRF, autorización y PostgreSQL. Comprueba:
+
+1. login del administrador;
+2. existencia de institución, dos docentes, año/curso, materia y dos asignaciones;
+3. logout con sesión real;
+4. login del primer docente;
+5. proyección exclusiva de su propia asignación;
+6. lectura propia por UUID con `200`;
+7. lectura del UUID del segundo docente con `403`;
+8. logout docente;
+9. foco inicial, tabulación del formulario, foco del encabezado tras navegación y logout visible a 390 × 844.
+
+El provisionador se ejecutó dos veces contra la misma base. Permanecieron 3 usuarios estándar, 2 docentes, 2 vínculos institucionales, 1 año, 1 curso, 1 materia, 2 asignaciones y 13 permisos concedidos; únicamente se añadió el evento de auditoría correspondiente a cada invocación.
+
+La primera corrida de la nueva integración expuso un `P2034` al sincronizar el catálogo dentro de una transacción serializable concurrente. Se movió esa sincronización antes de la transacción del dataset y se mantuvieron reintentos acotados. Una repetición sobre la base ya alterada produjo colisiones de fixtures históricos; la evidencia final se obtuvo correctamente desde otra base vacía. También se corrigió una carrera de foco entre restauración de sesión y render de la ruta antes de la última corrida E2E.
+
+Para repetir solo el E2E real, los servicios y el dataset deben existir y las cuatro variables de login/contraseña del administrador y primer docente deben estar en la sesión de shell:
+
+```powershell
+npm run test:e2e:real
+```

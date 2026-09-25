@@ -235,4 +235,61 @@ npm run test:e2e
 
 El comando E2E ejecuta primero el build. La prueba levanta un servidor estático efímero en `127.0.0.1:4174`, utiliza el Chrome instalado y lo cierra al terminar. Intercepta la API para mantener datos y credenciales ficticios fuera de PostgreSQL.
 
-Para una demo real se usa `npm run dev` con PostgreSQL/API disponibles, `VITE_API_URL` apuntando al backend y cuentas provisionales entregadas fuera del repositorio. Nunca se deben copiar credenciales reales a `.env.example`, documentación, fixtures o código.
+La demo real se provisiona con el comando descrito a continuación. Nunca se deben copiar credenciales reales a `.env.example`, documentación, fixtures o código.
+
+## Provisionamiento y E2E real del Hito 1
+
+`apps/api/src/commands/bootstrap-hito1-demo.ts` es un comando de infraestructura, no una ruta HTTP. Rechaza cualquier `NODE_ENV` distinto de `development` o `test` y exige:
+
+- `HITO1_DEMO_TECHNICAL_LOGIN`: cuenta `TECHNICAL` activa ya creada por `bootstrap:root`;
+- login y contraseña para administrador;
+- login y contraseña para cada uno de los dos docentes.
+
+Los tres logins deben ser diferentes y cada contraseña debe tener al menos 12 caracteres. El comando normaliza logins, calcula hashes `scrypt`, nunca imprime secretos y solo persiste hashes. `.env.example` enumera variables vacías.
+
+El catálogo de 13 permisos se sincroniza antes de abrir la transacción serializable del dataset. Dentro de la transacción se usan UUID reservados y `upsert` para restablecer de manera determinista institución, año, docentes/vínculos, curso, materia, asignaciones, rol, scope y concesión. Se registra una auditoría `demo.hito1.bootstrap` por invocación con conteos y sin credenciales. Los errores `P2034` se reintentan hasta tres veces.
+
+Ejemplo de ejecución local, con secretos sustituidos y suministrados únicamente en la sesión:
+
+```powershell
+$env:NODE_ENV='development'
+$env:DATABASE_URL='postgresql://edugestor:edugestor_dev@localhost:5432/edugestor?schema=public'
+$env:HITO1_DEMO_TECHNICAL_LOGIN='technical.hito1.demo'
+$env:HITO1_DEMO_ADMIN_LOGIN='admin.hito1.demo'
+$env:HITO1_DEMO_ADMIN_PASSWORD='<SECRETO_LOCAL_DE_12_O_MAS>'
+$env:HITO1_DEMO_TEACHER_ONE_LOGIN='ana.hito1.demo'
+$env:HITO1_DEMO_TEACHER_ONE_PASSWORD='<SECRETO_LOCAL_DE_12_O_MAS>'
+$env:HITO1_DEMO_TEACHER_TWO_LOGIN='bruno.hito1.demo'
+$env:HITO1_DEMO_TEACHER_TWO_PASSWORD='<SECRETO_LOCAL_DE_12_O_MAS>'
+npm run bootstrap:hito1-demo -w @edugestor/api
+```
+
+Compose usa `NODE_ENV=production` si no se proporciona otra cosa. Para servir la demo sobre HTTP en localhost debe exportarse `NODE_ENV=development` antes de `docker compose up -d --build`; de otro modo la cookie de sesión se marca `Secure`, como corresponde a producción, y el navegador no la devolverá por HTTP.
+
+### Playwright real
+
+`playwright.real.config.ts` ejecuta exclusivamente `e2e/hito1-real.spec.ts` contra `http://localhost:5173`. No inicia servicios, no provisiona datos y no registra rutas simuladas: esas precondiciones se mantienen explícitas para que un fallo de API, autorización o persistencia sea visible.
+
+```powershell
+$env:HITO1_DEMO_ADMIN_LOGIN='admin.hito1.demo'
+$env:HITO1_DEMO_ADMIN_PASSWORD='<MISMO_SECRETO_DEL_BOOTSTRAP>'
+$env:HITO1_DEMO_TEACHER_ONE_LOGIN='ana.hito1.demo'
+$env:HITO1_DEMO_TEACHER_ONE_PASSWORD='<MISMO_SECRETO_DEL_BOOTSTRAP>'
+npm run test:e2e:real
+```
+
+El `playwright.config.ts` ordinario ignora este archivo real y conserva el escenario simulado en `npm run test:e2e`. Esto evita ejecutar accidentalmente una prueba destructiva o dependiente de infraestructura al solicitar la suite rápida.
+
+### Validación de persistencia
+
+1. Ejecutar el E2E real.
+2. Reiniciar únicamente procesos sin eliminar el volumen: `docker compose restart api web`.
+3. Esperar `GET /health` con `database: available`.
+4. Repetir el E2E real.
+5. Consultar PostgreSQL si se necesita evidencia adicional. Una asignación vigente tiene `endedAt IS NULL`; no existe una columna `status` en `TeachingAssignment`.
+
+No usar `docker compose down -v` durante esta comprobación porque elimina el volumen y, por definición, los datos de la demo.
+
+### Accesibilidad básica validada
+
+`RouteFocus` enfoca el control inicial o el encabezado de cada ruta incluso cuando la restauración de sesión retrasa el render. Los elementos interactivos muestran contorno `:focus-visible`; el login se recorre por teclado y el botón de salida continúa disponible en el layout responsive. El E2E real comprueba estos puntos esenciales en escritorio y a 390 × 844.

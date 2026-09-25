@@ -1,6 +1,6 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT COMPLETADO — Frontend del Hito 1
+## CHECKPOINT COMPLETADO — Validación real del Hito 1
 
 **Fecha:** 25/09/2026.
 
@@ -8,56 +8,55 @@
 
 ### Implementado
 
-- Aplicación React funcional con React Router y TanStack Query sobre las APIs existentes; no se añadieron endpoints ni reglas de dominio.
-- Login, restauración de sesión, logout, cookie de sesión administrada por el navegador, CSRF de doble envío y cliente HTTP con `credentials: "include"`.
-- El token CSRF se conserva únicamente en memoria. No se escriben token, cookie ni credenciales en `localStorage` o `sessionStorage`.
-- Manejo uniforme de `401`, `403`, `409` y `422`; un `401` operativo invalida el estado local de sesión.
-- Rutas privadas, redirección inicial basada en capacidades observables del backend, `PermissionGate`, `AdminLayout`, `TeacherLayout`, `ForbiddenPage` y `NotFoundPage`.
-- Flujo administrativo responsive y secuencial: Institución → Docentes/cuenta → Año lectivo/curso → Materias → TeachingAssignment.
-- Listado, alta, consulta en contexto, edición y cambios de estado conforme a las rutas ya disponibles. Las operaciones sensibles piden confirmación.
-- Área docente “Mis asignaciones” con institución, año lectivo, grado, sección, turno y materia. Una cuenta solo docente no recibe navegación ni controles administrativos.
-- Estados de carga, vacío, éxito y error en todas las etapas principales.
-- Escenario Playwright reproducible con datos ficticios e interceptación de API; no inserta datos ni secretos en PostgreSQL.
+- Comando CLI idempotente `npm run bootstrap:hito1-demo -w @edugestor/api` para provisionar exclusivamente en `development` o `test` el conjunto ficticio del Hito 1.
+- El comando exige por entorno una cuenta técnica existente, tres logins y tres contraseñas; no contiene credenciales predeterminadas ni expone contraseñas, hashes o tokens.
+- Dataset reproducible con institución, año lectivo, dos docentes/cuentas/vínculos, curso, materia, dos `TeachingAssignment`, rol administrativo, scope institucional, 13 permisos y auditoría por ejecución.
+- Identificadores reservados estables y operaciones `upsert` permiten repetir el provisionamiento sin duplicar entidades. Cada invocación conserva su propio `AuditLog`.
+- Protección explícita contra ejecución en producción y validación de contraseñas de al menos 12 caracteres y logins distintos.
+- E2E Playwright real, separado del escenario simulado, contra React en `:5173`, Express en `:3000` y PostgreSQL en `:5432`; no intercepta API, autenticación, autorización ni persistencia.
+- Revisión breve de accesibilidad/UX: foco inicial y al navegar, foco visible, tabulación de login, contraste de etiquetas, salida accesible en ancho móvil y conservación de estados de carga/vacío/error y confirmaciones existentes.
 
-### Rutas de pantalla
+### Recorrido real validado
 
-- `/login`
-- `/admin/institutions`
-- `/admin/institutions/:institutionId/teachers`
-- `/admin/institutions/:institutionId/academic`
-- `/admin/institutions/:institutionId/subjects`
-- `/admin/institutions/:institutionId/assignments`
-- `/teacher/assignments`
-- `/forbidden` y fallback `404`
+Administrador inicia sesión → comprueba institución → docentes → año/curso → materia → asignaciones → cierra sesión → docente inicia sesión → ve únicamente su asignación → acceso propio `200` → UUID ajeno `403` → cierra sesión.
 
-### API y persistencia
+Después de reiniciar los contenedores `api` y `web`, ambas cuentas volvieron a iniciar sesión, las dos asignaciones siguieron disponibles y PostgreSQL conservó dos eventos `demo.hito1.bootstrap`.
 
-- No se modificó la API backend, el schema Prisma ni las migraciones.
-- El frontend consume exclusivamente autenticación, comprobación de autorización y módulos académicos documentados en `API.md`.
-- La creación ordinaria de instituciones continúa sin inferirse desde un scope inexistente; solo se presenta a cuentas `TECHNICAL`, conforme al backend aprobado.
+### Persistencia y migraciones
+
+- El schema Prisma y las cuatro migraciones normativas permanecen sin cambios.
+- Las cuatro migraciones se aplicaron satisfactoriamente desde una base PostgreSQL vacía.
+- `prisma migrate status` informó la base de desarrollo al día.
+- Consulta directa posterior al reinicio: 2 asignaciones vigentes y 2 auditorías de bootstrap.
 
 ### Pruebas ejecutadas y resultado
 
-- React Testing Library/Vitest: 8/8 pruebas aprobadas.
-- Playwright con Chrome local y datos ficticios: 1/1 recorrido completo aprobado.
-- Build Vite de producción: aprobado.
-- Validación integral final: `npm run typecheck`, `npm run build` y `npm test` aprobados en los tres workspaces.
-- La integración PostgreSQL backend no se repitió en este checkpoint exclusivamente frontend; el checkpoint backend estable previo conserva 56/56 pruebas PostgreSQL aprobadas.
+- `npm run prisma:validate`: aprobado.
+- `npm run prisma:generate`: aprobado.
+- Migración desde base vacía: 4/4 aplicadas.
+- Integración PostgreSQL completa: 11 archivos, 60/60 pruebas aprobadas.
+- `npm run typecheck`: 3 workspaces aprobados.
+- `npm run build`: shared, API y frontend aprobados; Vite transformó 104 módulos.
+- `npm test`: shared 1/1, API ordinaria 13/13 y React 8/8; las integraciones PostgreSQL se omiten por diseño en esta orden ordinaria.
+- `npm run test:e2e`: escenario simulado existente 1/1 aprobado.
+- `npm run test:e2e:real`: escenario real 1/1 aprobado antes y después de reiniciar API/web; corrida final 2,3 s.
+- `GET /health` después del reinicio: `status=ok`, `database=available`.
 
 ### Errores encontrados y corregidos
 
-- Se corrigió el aislamiento de DOM entre pruebas de React mediante `cleanup` global.
-- El navegador Playwright administrado no estaba instalado; se configuró el Chrome local disponible.
-- Vite dev intentó optimizar dependencias fuera del ámbito permitido; el E2E ahora construye la aplicación y la sirve desde un servidor estático controlado por el propio test.
-- Se corrigió la simulación del acceso a UUID ajeno para que reproduzca el `403` real.
+- La primera integración del bootstrap detectó un conflicto serializable `P2034` al sincronizar el catálogo en paralelo. La sincronización se separó de la transacción del dataset y el bootstrap conserva reintentos acotados; la corrida final desde cero aprobó 60/60.
+- Reutilizar una base ya alterada por una corrida fallida produjo colisiones esperables en pruebas históricas. La validación final se repitió sobre una base nueva y vacía.
+- El foco inicial podía competir con la restauración asíncrona de sesión. `RouteFocus` ahora espera el contenido de ruta, prioriza el control inicial y desconecta su observador con límite temporal.
+- Durante la consulta manual de persistencia se corrigieron dos expresiones SQL de diagnóstico (escape de identificadores y uso de `endedAt` en lugar de una columna inexistente); no hubo cambio de código ni datos por esos intentos fallidos.
 
 ### Límites vigentes
 
-- No existe en la API un endpoint agregado de capacidades. La UI deriva la entrada administrativa del listado autorizado de instituciones y consulta controles concretos mediante `/authorization/check`; el backend sigue siendo la única autoridad.
-- El E2E es una demostración frontend determinista con API simulada. La cobertura real PostgreSQL vive en las pruebas de integración backend del checkpoint anterior.
-- Las credenciales `admin.demo` y `docente.demo` son exclusivamente ficticias dentro del E2E. No son cuentas creadas en una base real.
+- El bootstrap de demostración no crea nuevas entidades de dominio ni modifica el schema Prisma.
+- Las contraseñas deben suministrarse en variables de entorno de la sesión; `.env.example` solo documenta nombres vacíos.
+- Compose mantiene `NODE_ENV=production` por defecto. Para una demostración HTTP local debe definirse explícitamente `NODE_ENV=development`; en producción la cookie sigue siendo `Secure`.
+- El E2E simulado se conserva para pruebas rápidas del frontend y el nuevo E2E real se ejecuta mediante un comando separado.
 - No se implementaron estudiantes, tareas, asistencia, currículo, planificación ni IA.
 
 ### Siguiente checkpoint exacto
 
-**Cierre verificable del Hito 1: preparar datos de demostración no productivos mediante un mecanismo backend aprobado, ejecutar el recorrido navegador contra PostgreSQL real y realizar revisión de accesibilidad/UX sin ampliar el dominio.**
+**Aceptación manual y cierre documental del Hito 1 con las personas responsables; definir y aprobar normativamente el siguiente hito antes de ampliar el dominio o iniciar nuevos módulos académicos.**

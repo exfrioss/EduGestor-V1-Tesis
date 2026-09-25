@@ -1,5 +1,16 @@
 # Changelog
 
+## 25/09/2026 — Validación real y cierre técnico del Hito 1
+
+- Se añadió `bootstrap:hito1-demo`, un provisionador CLI idempotente limitado a `development`/`test`, configurado íntegramente mediante variables de entorno y auditado sin secretos.
+- Se incorporó un dataset ficticio reproducible con administrador institucional, institución, año lectivo, dos docentes/cuentas, curso, materia, asignaciones y concesiones completas del Hito 1.
+- Se agregó un E2E Playwright real que usa React, Express y PostgreSQL sin interceptar API, sesión, permisos ni persistencia.
+- Se comprobó el recorrido administrador/docente, el aislamiento por UUID, la conservación de datos tras reiniciar API/web y la existencia de auditoría.
+- Se mantuvo separado el E2E simulado para validación rápida del frontend.
+- Se reforzaron foco de ruta, foco visible, tabulación, contraste y acceso al logout en ancho móvil.
+- Se aplicaron las cuatro migraciones desde una base vacía y la integración PostgreSQL completa aprobó 60/60 pruebas; los E2E simulado y real aprobaron 1/1 cada uno.
+- No se modificaron el schema Prisma, las migraciones ni las especificaciones normativas, y no se añadieron módulos académicos.
+
 ## 25/09/2026 — Frontend del Hito 1
 
 - Se reemplazó el scaffold por una aplicación React responsive con autenticación, restauración de sesión, logout, CSRF en memoria y transporte `credentials: "include"`.

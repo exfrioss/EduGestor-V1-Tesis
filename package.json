@@ -10,6 +10,7 @@
     "typecheck": "npm run typecheck -w @edugestor/shared && npm run typecheck -w @edugestor/api && npm run typecheck -w @edugestor/web",
     "test": "npm run test -w @edugestor/shared && npm run test -w @edugestor/api && npm run test -w @edugestor/web",
     "test:e2e": "npm run build -w @edugestor/web && playwright test",
+    "test:e2e:real": "playwright test --config playwright.real.config.ts",
     "prisma:generate": "npm run prisma:generate -w @edugestor/api",
     "prisma:validate": "npm run prisma:validate -w @edugestor/api"
   },

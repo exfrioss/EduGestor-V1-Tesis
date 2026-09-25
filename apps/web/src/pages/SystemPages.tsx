@@ -22,7 +22,7 @@ export function LandingPage() {
 }
 
 function ErrorPage({ code, title, message }: { code: string; title: string; message: string }) {
-  return <main className="error-page"><span>{code}</span><h1>{title}</h1><p>{message}</p><Link className="button primary" to="/">Volver al inicio</Link></main>;
+  return <main className="error-page"><span>{code}</span><h1 data-route-heading tabIndex={-1}>{title}</h1><p>{message}</p><Link className="button primary" to="/">Volver al inicio</Link></main>;
 }
 export const ForbiddenPage = () => <ErrorPage code="403" title="Acceso restringido" message="Tu cuenta no tiene una concesión válida para este recurso. Si crees que es un error, consulta con un administrador." />;
 export const NotFoundPage = () => <ErrorPage code="404" title="Página no encontrada" message="La dirección no existe o fue movida." />;

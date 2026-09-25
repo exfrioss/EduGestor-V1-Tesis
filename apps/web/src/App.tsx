@@ -13,12 +13,13 @@ import { InstitutionsPage } from './pages/admin/InstitutionsPage';
 import { SubjectsPage } from './pages/admin/SubjectsPage';
 import { TeachersPage } from './pages/admin/TeachersPage';
 import { MyAssignmentsPage } from './pages/teacher/MyAssignmentsPage';
+import { RouteFocus } from './components/RouteFocus';
 
 export function App() {
   const [queryClient] = useState(() => new QueryClient({
     defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false }, mutations: { retry: false } },
   }));
-  return <QueryClientProvider client={queryClient}><BrowserRouter><AuthProvider><Routes>
+  return <QueryClientProvider client={queryClient}><BrowserRouter><RouteFocus /><AuthProvider><Routes>
     <Route path="/login" element={<AnonymousOnly><LoginPage /></AnonymousOnly>} />
     <Route element={<RequireAuthenticated />}>
       <Route index element={<LandingPage />} />

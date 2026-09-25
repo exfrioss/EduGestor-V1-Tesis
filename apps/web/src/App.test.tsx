@@ -18,6 +18,7 @@ describe('frontend Hito 1', () => {
     vi.stubGlobal('fetch', vi.fn(async () => json({ error: { code: 'AUTH_REQUIRED', message: 'Acceso denegado' } }, 401)));
     render(<App />);
     expect(await screen.findByRole('heading', { name: 'Inicia sesión' })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText('Usuario')).toHaveFocus());
   });
 
   it('inicia sesión, incluye credenciales y redirige al área administrativa', async () => {
