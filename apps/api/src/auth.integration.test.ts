@@ -1,4 +1,5 @@
 import { PassThrough } from 'node:stream';
+import { randomUUID } from 'node:crypto';
 import { AccountKind, PrismaClient } from '@prisma/client';
 import pino from 'pino';
 import request from 'supertest';
@@ -13,6 +14,8 @@ import { hashPassword } from './security/password.js';
 const describeDatabase = process.env.RUN_DATABASE_TESTS === '1' ? describe : describe.skip;
 const client = new PrismaClient();
 const password = 'Integracion-segura-2026!';
+const suffix = randomUUID().slice(0, 8);
+const testLogin = (name: string) => `${name}-${suffix}`;
 const config: AuthConfig = {
   sessionTtlMs: 8 * 60 * 60 * 1_000,
   lastSeenIntervalMs: 60_000,
@@ -65,8 +68,8 @@ const createUser = async (login: string, options: { active?: boolean; teacher?: 
 
 describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   beforeAll(async () => {
-    await createUser('auth-correct');
-    await createUser('auth-inactive', { active: false });
+    await createUser(testLogin('auth-correct'));
+    await createUser(testLogin('auth-inactive'), { active: false });
   });
 
   afterAll(async () => {
@@ -76,10 +79,10 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   it('realiza login, emite cookie segura y nunca persiste el token en claro', async () => {
     const response = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-correct', password });
+      .send({ login: testLogin('auth-correct'), password });
 
     expect(response.status).toBe(200);
-    expect(response.body.user).toMatchObject({ login: 'auth-correct', accountKind: 'STANDARD' });
+    expect(response.body.user).toMatchObject({ login: testLogin('auth-correct'), accountKind: 'STANDARD' });
     expect(response.body.session.expiresAt).toBeTypeOf('string');
     const setCookies = response.headers['set-cookie'] as unknown as string[];
     const cookie = setCookies.find((value) => value.startsWith(`${config.sessionCookieName}=`));
@@ -98,13 +101,13 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   it('responde igual ante contraseña incorrecta, usuario inexistente y usuario desactivado', async () => {
     const wrong = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-correct', password: 'incorrecta' });
+      .send({ login: testLogin('auth-correct'), password: 'incorrecta' });
     const missing = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-does-not-exist', password: 'incorrecta' });
+      .send({ login: testLogin('auth-does-not-exist'), password: 'incorrecta' });
     const inactive = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-inactive', password });
+      .send({ login: testLogin('auth-inactive'), password });
 
     expect(wrong.status).toBe(401);
     expect(missing.status).toBe(401);
@@ -120,7 +123,7 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   it('acepta una sesión válida, actualiza lastSeenAt sin extender su expiración', async () => {
     const login = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-correct', password });
+      .send({ login: testLogin('auth-correct'), password });
     const token = cookieValue(login.headers['set-cookie'] as unknown as string[], config.sessionCookieName);
     const tokenHash = hashSessionToken(token);
     const original = await client.authSession.update({
@@ -134,17 +137,17 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
     const updated = await client.authSession.findUniqueOrThrow({ where: { tokenHash } });
 
     expect(response.status).toBe(200);
-    expect(response.body.user.login).toBe('auth-correct');
+    expect(response.body.user.login).toBe(testLogin('auth-correct'));
     expect(updated.lastSeenAt?.getTime()).toBeGreaterThan(0);
     expect(updated.expiresAt.toISOString()).toBe(original.expiresAt.toISOString());
   });
 
   it('rechaza sesiones expiradas y sesiones revocadas', async () => {
-    await createUser('auth-expired');
-    await createUser('auth-revoked');
+    await createUser(testLogin('auth-expired'));
+    await createUser(testLogin('auth-revoked'));
     const expiredLogin = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-expired', password });
+      .send({ login: testLogin('auth-expired'), password });
     const expiredToken = cookieValue(
       expiredLogin.headers['set-cookie'] as unknown as string[],
       config.sessionCookieName,
@@ -159,7 +162,7 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
 
     const revokedLogin = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-revoked', password });
+      .send({ login: testLogin('auth-revoked'), password });
     const revokedToken = cookieValue(
       revokedLogin.headers['set-cookie'] as unknown as string[],
       config.sessionCookieName,
@@ -182,10 +185,10 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
     const noSession = await request(app).get('/api/v1/auth/session');
     expect(noSession.status).toBe(401);
 
-    await createUser('auth-no-csrf');
+    await createUser(testLogin('auth-no-csrf'));
     const login = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-no-csrf', password });
+      .send({ login: testLogin('auth-no-csrf'), password });
     const response = await request(app)
       .post('/api/v1/auth/logout')
       .set('Cookie', sessionCookie(login));
@@ -194,11 +197,11 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   });
 
   it('entrega CSRF a una sesión y logout revoca la sesión y limpia cookies', async () => {
-    await createUser('auth-logout');
+    await createUser(testLogin('auth-logout'));
     const agent = request.agent(app);
     const login = await agent
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-logout', password });
+      .send({ login: testLogin('auth-logout'), password });
     const token = cookieValue(login.headers['set-cookie'] as unknown as string[], config.sessionCookieName);
     const csrf = await agent.get('/api/v1/auth/csrf');
     const logout = await agent
@@ -216,9 +219,9 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
   });
 
   it('revoca todas las sesiones al desactivar User o Teacher', async () => {
-    const plainUser = await createUser('auth-disable-user');
-    const teacherUser = await createUser('auth-disable-teacher', { teacher: true });
-    for (const login of ['auth-disable-user', 'auth-disable-user', 'auth-disable-teacher']) {
+    const plainUser = await createUser(testLogin('auth-disable-user'));
+    const teacherUser = await createUser(testLogin('auth-disable-teacher'), { teacher: true });
+    for (const login of [testLogin('auth-disable-user'), testLogin('auth-disable-user'), testLogin('auth-disable-teacher')]) {
       expect(
         (await request(app).post('/api/v1/auth/login').send({ login, password })).status,
       ).toBe(200);
@@ -241,13 +244,13 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
     ).toBe(0);
     const disabledTeacherLogin = await request(app)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-disable-teacher', password });
+      .send({ login: testLogin('auth-disable-teacher'), password });
     expect(disabledTeacherLogin.status).toBe(401);
     expect(disabledTeacherLogin.body.error.code).toBe('INVALID_CREDENTIALS');
   });
 
   it('no expone contraseña, hash ni token de sesión en respuestas, auditoría o logs', async () => {
-    await createUser('auth-secrecy');
+    await createUser(testLogin('auth-secrecy'));
     const stream = new PassThrough();
     let logs = '';
     stream.on('data', (chunk: Buffer) => {
@@ -259,12 +262,12 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
     });
     const response = await request(loggedApp)
       .post('/api/v1/auth/login')
-      .send({ login: 'auth-secrecy', password });
+      .send({ login: testLogin('auth-secrecy'), password });
     const rawToken = cookieValue(
       response.headers['set-cookie'] as unknown as string[],
       config.sessionCookieName,
     );
-    const user = await client.user.findUniqueOrThrow({ where: { loginNormalized: 'auth-secrecy' } });
+    const user = await client.user.findUniqueOrThrow({ where: { loginNormalized: testLogin('auth-secrecy') } });
     await new Promise((resolve) => setImmediate(resolve));
     const audits = await client.auditLog.findMany({ where: { action: 'auth.login' } });
     const serialized = `${JSON.stringify(response.body)}${JSON.stringify(audits)}${logs}`;
@@ -286,7 +289,7 @@ describeDatabase('autenticación y sesiones con PostgreSQL', () => {
         (
           await request(limitedApp)
             .post('/api/v1/auth/login')
-            .send({ login: 'rate-limited-missing', password: 'incorrecta' })
+            .send({ login: testLogin('rate-limited-missing'), password: 'incorrecta' })
         ).status,
       );
     }

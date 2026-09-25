@@ -44,8 +44,8 @@ test('Hito 1 completo contra API y PostgreSQL reales', async ({ page }) => {
 
   await page.getByRole('link', { name: 'Asignaciones' }).click();
   await expect(page.getByRole('heading', { name: 'Asignaciones docentes' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: HITO1_DEMO_DATA.teacherOneName })).toBeVisible();
-  await expect(page.getByRole('cell', { name: HITO1_DEMO_DATA.teacherTwoName })).toBeVisible();
+  await expect(page.getByRole('cell', { name: HITO1_DEMO_DATA.teacherOneName }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: HITO1_DEMO_DATA.teacherTwoName }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: HITO1_DEMO_DATA.subjectName }).first()).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -58,10 +58,10 @@ test('Hito 1 completo contra API y PostgreSQL reales', async ({ page }) => {
 
   await expect(page.getByRole('heading', { name: 'Mis asignaciones' })).toBeVisible();
   await expect(page.getByRole('heading', { name: HITO1_DEMO_DATA.subjectName })).toHaveCount(1);
-  await expect(page.getByText(HITO1_DEMO_DATA.institutionName)).toBeVisible();
-  await expect(page.getByText(HITO1_DEMO_DATA.grade)).toBeVisible();
-  await expect(page.getByText(HITO1_DEMO_DATA.section, { exact: true })).toBeVisible();
-  await expect(page.getByText(HITO1_DEMO_DATA.shift)).toBeVisible();
+  await expect(page.getByText(HITO1_DEMO_DATA.institutionName).first()).toBeVisible();
+  await expect(page.getByText(HITO1_DEMO_DATA.grade).first()).toBeVisible();
+  await expect(page.getByText(HITO1_DEMO_DATA.section, { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(HITO1_DEMO_DATA.shift).first()).toBeVisible();
 
   const access = await page.evaluate(
     async ({ ownId, foreignId }) => {

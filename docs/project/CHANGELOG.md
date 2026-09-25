@@ -1,5 +1,18 @@
 # Changelog
 
+## 25/09/2026 — Refinamiento estructural curricular
+
+- Se añadieron `PlanType`, `AcademicArea`, `CurriculumDiscipline` y `SubjectCurriculumMapping` al esquema Prisma aprobado.
+- Se incorporó `Course.btiYear` nullable con rango PostgreSQL `1..3`.
+- Una FK compuesta garantiza que el área opcional de una disciplina pertenezca a su mismo tipo de plan.
+- Un índice único parcial garantiza una sola correspondencia vigente por materia/año BTI, conservando reemplazos históricos mediante `retiredAt`.
+- Se retiró el enum curricular de `Subject` sin reasignar materias; sus valores previos no nulos quedan conservados en auditoría de migración.
+- Se creó y validó la migración `20260925120000_curriculum_structure_refinement` tanto sobre la base existente como desde un esquema vacío.
+- Se actualizó la API de cursos con `btiYear` y se retiró el campo obsoleto de la API/UI de materias, sin añadir navegación curricular.
+- Se añadieron pruebas PostgreSQL para los ejemplos y restricciones normativas; la integración completa aprobó 68/68 y los E2E simulado/real del Hito 1 aprobaron 1/1.
+- Se corrigió la procedencia idempotente del bootstrap demo y se hicieron repetibles los fixtures de integración sobre bases persistentes.
+- No se implementaron APIs/pantallas curriculares, capacidades, contenidos, indicadores, planificación ni IA.
+
 ## 25/09/2026 — Validación real y cierre técnico del Hito 1
 
 - Se añadió `bootstrap:hito1-demo`, un provisionador CLI idempotente limitado a `development`/`test`, configurado íntegramente mediante variables de entorno y auditado sin secretos.

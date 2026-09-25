@@ -1,4 +1,3 @@
-import { CurriculumDiscipline } from '@prisma/client';
 import { z } from 'zod';
 
 export const uuidSchema = z.string().uuid();
@@ -51,6 +50,7 @@ export const createCourseSchema = z.object({
   grade: nonEmptyText,
   section: nonEmptyText,
   shift: nonEmptyText,
+  btiYear: z.number().int().min(1).max(3).nullable().optional(),
 });
 
 export const updateCourseSchema = z
@@ -59,19 +59,18 @@ export const updateCourseSchema = z
     grade: nonEmptyText.optional(),
     section: nonEmptyText.optional(),
     shift: nonEmptyText.optional(),
+    btiYear: z.number().int().min(1).max(3).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0);
 
 export const createSubjectSchema = z.object({
   institutionId: uuidSchema,
   name: nonEmptyText,
-  curriculumDiscipline: z.enum(CurriculumDiscipline).nullable().optional(),
 });
 
 export const updateSubjectSchema = z
   .object({
     name: nonEmptyText.optional(),
-    curriculumDiscipline: z.enum(CurriculumDiscipline).nullable().optional(),
   })
   .refine((value) => Object.keys(value).length > 0);
 

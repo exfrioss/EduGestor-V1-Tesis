@@ -260,7 +260,9 @@ describeDatabase('núcleo institucional y académico Hito 1 con PostgreSQL', () 
       { institutionId: institutionA.id, name: 'Laboratorio General' },
       operationContext(admin),
     );
-    expect(subjectA.curriculumDiscipline).toBeNull();
+    expect(
+      await client.subjectCurriculumMapping.count({ where: { subjectId: subjectA.id } }),
+    ).toBe(0);
   });
 
   it('10. crea TeachingAssignment válidas', async () => {

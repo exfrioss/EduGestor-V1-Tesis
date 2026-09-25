@@ -410,6 +410,7 @@ export class AcademicService {
             grade: normalizeComparableText(input.grade),
             section: normalizeComparableText(input.section),
             shift: normalizeComparableText(input.shift),
+            btiYear: input.btiYear,
           });
           await repository.appendAudit(
             this.auditRecord(context, {
@@ -478,6 +479,7 @@ export class AcademicService {
           ...(input.grade === undefined ? {} : { grade: normalizeComparableText(input.grade) }),
           ...(input.section === undefined ? {} : { section: normalizeComparableText(input.section) }),
           ...(input.shift === undefined ? {} : { shift: normalizeComparableText(input.shift) }),
+          ...(input.btiYear === undefined ? {} : { btiYear: input.btiYear }),
           rowVersion: { increment: 1 },
         });
         await repository.appendAudit(
@@ -516,7 +518,6 @@ export class AcademicService {
             institutionId: input.institutionId,
             name: normalizeDisplayText(input.name),
             nameNormalized: normalizeComparableText(input.name),
-            curriculumDiscipline: input.curriculumDiscipline,
           });
           await repository.appendAudit(
             this.auditRecord(context, {
@@ -562,9 +563,6 @@ export class AcademicService {
                 name: normalizeDisplayText(input.name),
                 nameNormalized: normalizeComparableText(input.name),
               }),
-          ...(input.curriculumDiscipline === undefined
-            ? {}
-            : { curriculumDiscipline: input.curriculumDiscipline }),
           rowVersion: { increment: 1 },
         });
         await repository.appendAudit(
@@ -951,6 +949,7 @@ export class AcademicService {
     grade: string;
     section: string;
     shift: string;
+    btiYear: number | null;
     isActive: boolean;
   }) {
     return {
@@ -959,6 +958,7 @@ export class AcademicService {
       grade: value.grade,
       section: value.section,
       shift: value.shift,
+      btiYear: value.btiYear,
       isActive: value.isActive,
     };
   }
@@ -966,13 +966,11 @@ export class AcademicService {
   private subjectAuditData(value: {
     id: string;
     name: string;
-    curriculumDiscipline: string | null;
     isActive: boolean;
   }) {
     return {
       id: value.id,
       name: value.name,
-      curriculumDiscipline: value.curriculumDiscipline,
       isActive: value.isActive,
     };
   }
