@@ -255,3 +255,11 @@ Grado, sección y turno se normalizan antes de aplicar la unicidad institucional
 La creación valida docente y cuenta activos, vínculo `TeacherInstitution` vigente, institución/curso/materia activos, contexto institucional idéntico y terna no duplicada. El UUID de una asignación ajena no concede acceso.
 
 Conflictos de unicidad devuelven `409 CONFLICT`; contexto o estado inválido devuelve `400 VALIDATION_ERROR`; falta de permiso devuelve `403 PERMISSION_DENIED`.
+
+## Consumo desde el frontend del Hito 1
+
+El frontend no incorpora endpoints adicionales. Envía cookies con `credentials: "include"`, obtiene CSRF mediante `GET /api/v1/auth/csrf` y adjunta `x-csrf-token` en toda mutación. Nunca recibe ni persiste el token opaco de sesión.
+
+Como la API no expone una lista agregada de capacidades, la entrada administrativa usa `GET /api/v1/institutions` como proyección autorizada y cada control mutable consulta `GET /api/v1/authorization/check/:resourceType/:resourceId/:permissionCode`. Ocultar un control es solo una ayuda de interfaz: todas las operaciones continúan sujetas a la autorización backend.
+
+No se alteraron contratos, códigos de respuesta ni rutas durante el checkpoint frontend.

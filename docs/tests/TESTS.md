@@ -164,3 +164,29 @@ Casos nuevos ejecutados contra PostgreSQL real:
 Adicionalmente, una prueba HTTP verifica rechazo sin sesión, rechazo de mutación sin CSRF y creación autorizada atravesando router, controlador, servicio, repositorio y Prisma.
 
 La ejecución paralela de integración expuso un conflicto serializable `P2034` en delegación. Se incorporó un reintento acotado de hasta tres intentos en las transacciones de autorización y académicas. La corrida final desde cero aprobó sin fallos.
+
+## Ejecución del 25/09/2026 — frontend del Hito 1
+
+| Verificación | Resultado |
+|---|---|
+| React Testing Library/Vitest | 1 archivo, 8/8 pruebas aprobadas |
+| Build Vite de producción | Aprobado; 103 módulos transformados |
+| Playwright sobre Chrome local | 1/1 recorrido aprobado |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Web aprobados |
+| `npm test` | Shared 1, API 11 y Web 8 aprobadas; 45 integraciones PostgreSQL omitidas por defecto |
+
+La cobertura frontend verifica:
+
+1. Redirección de una ruta privada cuando no existe sesión.
+2. Login correcto, error uniforme y transporte con `credentials: "include"`.
+3. Restauración de sesión al recargar.
+4. Controles administrativos presentes o ausentes según la respuesta de autorización.
+5. Formularios de año lectivo y curso.
+6. Obtención de CSRF, encabezado `x-csrf-token` y ausencia de escritura en Web Storage.
+7. Mensajes de interfaz específicos para `403`, `409` y `422`.
+8. Estado vacío docente y ausencia de navegación/controles administrativos.
+
+El E2E construye el frontend, lo sirve con un servidor estático efímero y simula únicamente las respuestas de la API con datos ficticios. Recorre login administrador → institución → docente → año/curso → materia → asignación → logout → login docente → Mis asignaciones → acceso ajeno `403`. Las credenciales de prueba no se persisten y no corresponden a usuarios reales.
+
+La integración PostgreSQL de 56 casos no se repitió porque este checkpoint no altera backend, Prisma ni migraciones. Su resultado estable queda registrado en la sección anterior.

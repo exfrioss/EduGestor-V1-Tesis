@@ -9,7 +9,7 @@
     "dev": "npm run build -w @edugestor/shared && concurrently -n shared,api,web -c yellow,cyan,green \"npm run dev -w @edugestor/shared\" \"npm run dev -w @edugestor/api\" \"npm run dev -w @edugestor/web\"",
     "typecheck": "npm run typecheck -w @edugestor/shared && npm run typecheck -w @edugestor/api && npm run typecheck -w @edugestor/web",
     "test": "npm run test -w @edugestor/shared && npm run test -w @edugestor/api && npm run test -w @edugestor/web",
-    "test:e2e": "playwright test",
+    "test:e2e": "npm run build -w @edugestor/web && playwright test",
     "prisma:generate": "npm run prisma:generate -w @edugestor/api",
     "prisma:validate": "npm run prisma:validate -w @edugestor/api"
   },

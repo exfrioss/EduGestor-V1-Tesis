@@ -206,3 +206,33 @@ npm run test -w @edugestor/api
 ```
 
 La suite crea auditoría append-only y no debe ejecutarse contra datos reales.
+
+## Frontend del Hito 1
+
+La aplicación se organiza en `apps/web/src` por responsabilidades:
+
+- `api/`: contratos de respuesta, cliente HTTP, errores y CSRF en memoria;
+- `auth/`: restauración de sesión, guardas de ruta y `PermissionGate`;
+- `layouts/`: navegación administrativa y docente;
+- `pages/admin/`: flujo institucional secuencial;
+- `pages/teacher/`: proyección propia de asignaciones;
+- `components/`: estados, campos, paneles y acciones compartidas.
+
+`AuthProvider` consulta `/api/v1/auth/session` al montar. La cookie HttpOnly no es accesible desde React. Un `401` emitido por una solicitud posterior limpia el estado de sesión, reinicia el CSRF en memoria y permite que la guarda redirija a `/login`.
+
+`apiMutation` obtiene `/api/v1/auth/csrf` solo cuando no existe un valor en memoria y envía `x-csrf-token` junto a la cookie CSRF que administra el navegador. Login y logout reinician ese valor. No existe acceso a `localStorage` ni `sessionStorage`.
+
+La UI no replica la evaluación jerárquica. `PermissionGate` consulta la ruta backend de comprobación con un recurso real y solo decide visibilidad. Un enlace visible nunca sustituye la autorización del caso de uso.
+
+### Comandos frontend
+
+```bash
+npm run typecheck -w @edugestor/web
+npm test -w @edugestor/web -- --run
+npm run build -w @edugestor/web
+npm run test:e2e
+```
+
+El comando E2E ejecuta primero el build. La prueba levanta un servidor estático efímero en `127.0.0.1:4174`, utiliza el Chrome instalado y lo cierra al terminar. Intercepta la API para mantener datos y credenciales ficticios fuera de PostgreSQL.
+
+Para una demo real se usa `npm run dev` con PostgreSQL/API disponibles, `VITE_API_URL` apuntando al backend y cuentas provisionales entregadas fuera del repositorio. Nunca se deben copiar credenciales reales a `.env.example`, documentación, fixtures o código.

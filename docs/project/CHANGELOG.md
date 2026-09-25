@@ -1,5 +1,15 @@
 # Changelog
 
+## 25/09/2026 — Frontend del Hito 1
+
+- Se reemplazó el scaffold por una aplicación React responsive con autenticación, restauración de sesión, logout, CSRF en memoria y transporte `credentials: "include"`.
+- Se añadieron rutas privadas, redirección basada en capacidades observadas en backend, `PermissionGate`, layouts administrativo/docente y páginas 403/404.
+- Se implementó el recorrido administrativo de instituciones, docentes/cuentas, años lectivos/cursos, materias y asignaciones docentes usando exclusivamente la API existente.
+- Se incorporó “Mis asignaciones” para docentes sin controles administrativos implícitos.
+- Se añadieron estados de carga, vacío, éxito/error, confirmaciones y manejo explícito de 401/403/409/422.
+- Se agregaron 8 pruebas React Testing Library y un recorrido Playwright completo con datos ficticios; ambos aprobaron.
+- No se modificaron Prisma, migraciones, API backend ni especificaciones normativas.
+
 ## 25/09/2026 — Núcleo institucional y académico backend del Hito 1
 
 - Se añadió el módulo `academic` con separación controller, servicio, repositorio y Prisma.
