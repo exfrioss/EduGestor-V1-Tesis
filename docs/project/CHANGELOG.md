@@ -1,5 +1,29 @@
 # Changelog
 
+## 25/09/2026 — API, autorización y UX curricular
+
+- Se incorporaron los cuatro permisos curriculares aprobados; el catálogo idempotente contiene 17 códigos y el bootstrap demo conserva exactamente los 13 del Hito 1.
+- Se implementaron las 13 rutas REST documentadas para lectura del catálogo, administración técnica excepcional y consulta/creación/retiro/sustitución de correspondencias.
+- La administración compartida exige cuenta técnica, concesión raíz explícita, motivo, sesión, CSRF y auditoría; el permiso no puede delegarse mediante el flujo ordinario.
+- La autorización de correspondencias resuelve la institución real de `Subject`; `COURSE_SET` puede leer solo con contexto válido y no puede escribir.
+- Retiro y sustitución preservan historia/UUID, usan `rowVersion`, transacción serializable y la unicidad parcial PostgreSQL existente.
+- Materias muestra la nueva sección opcional “Referencia curricular”; no se simula `curriculumAvailability` y un área nula se identifica como aún no validada.
+- Cursos permite capturar y editar el `btiYear` nullable ya incorporado al modelo.
+- No fue necesaria una migración nueva. Prisma, migraciones, typecheck, build, 77/77 pruebas API con PostgreSQL, 10/10 RTL, E2E simulado y 2/2 E2E reales (curricular + Hito 1) aprobaron.
+- No se modificaron requisitos, modelo normativo ni funcionalidades pedagógicas futuras.
+
+## 25/09/2026 — Contratos curriculares, permisos y UX aprobados (documentación)
+
+- Se verificaron los dos archivos reales del catálogo: convención recurso.acción y sincronización idempotente por código.
+- Se documentaron curriculum-catalog.read/manage y subject-curriculum-mapping.read/manage, en singular, sin modificar los 13 permisos implementados.
+- API.md define 13 rutas futuras de lectura/escritura del catálogo y creación/consulta/retiro/sustitución de correspondencias, solicitudes, respuestas, errores y autorización.
+- Se conservaron error.requestId y los códigos existentes de autenticación, autorización y CSRF; no se cambiaron contratos del Hito 1.
+- DECISIONS.md, recibido vacío, registra CUR-API-01: administración técnica excepcional sin scope global ni delegación institucional, historia/concurrencia, UX y límites del checkpoint.
+- curriculumAvailability queda reservado al contrato futuro y omitido en el checkpoint; no se simula disponibilidad ni ausencia de mallas y no se exige implementar Curriculum, capacidades, contenidos o indicadores.
+- PROJECT_CONTEXT.md registra la aprobación y el siguiente checkpoint de implementación; TESTS.md añade casos previstos, no ejecutados.
+- Solo se actualizaron API.md, DECISIONS.md, PROJECT_CONTEXT.md, CHANGELOG.md y TESTS.md. No se modificaron documentos normativos, TypeScript, Prisma ni migraciones. No se ejecutaron suites de aplicación en esta tarea documental.
+
+
 ## 25/09/2026 — Refinamiento estructural curricular
 
 - Se añadieron `PlanType`, `AcademicArea`, `CurriculumDiscipline` y `SubjectCurriculumMapping` al esquema Prisma aprobado.

@@ -115,3 +115,15 @@ npm run test:e2e:real
 La prueba real también comprueba que Ana puede consultar su propio UUID y recibe `403` al intentar consultar la asignación de Bruno. No usa interceptación de API.
 
 Para demostrar persistencia, ejecutar `docker compose restart api web`, esperar que `GET /health` vuelva a indicar `database: available` y repetir los pasos 5 a 11. Los datos viven en el volumen PostgreSQL y no se eliminan al reiniciar API o web.
+
+## Referencia curricular de una materia
+
+La materia continúa siendo un registro institucional genérico: puede crearse y utilizarse en una asignación docente sin referencia curricular. Si la cuenta dispone de los permisos curriculares nuevos, la tarjeta de la materia muestra la sección **Referencia curricular**.
+
+- **Sin referencia curricular** indica que no existe una correspondencia vigente; no es un error y no bloquea el Hito 1.
+- Una referencia muestra año BTI, **Disciplina curricular**, tipo de plan y área académica.
+- Si la clasificación oficial todavía no tiene área, se muestra **Área académica aún no validada**; no se ofrece un área ficticia.
+- **Disponibilidad de malla aún no consultable** significa que EduGestor todavía no dispone del módulo real de mallas. No significa que la malla no exista.
+- Con permiso de administración se puede añadir una referencia, retirarla conservando historia o sustituirla. Retiro y sustitución solicitan confirmación o una selección explícita.
+
+La palabra **Conducta** continúa reservada para comportamiento estudiantil. **Disciplina curricular** identifica solamente el catálogo curricular oficial.

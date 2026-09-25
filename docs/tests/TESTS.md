@@ -263,3 +263,69 @@ La nueva integración PostgreSQL comprueba:
 9. regresión completa de autenticación, permisos/scopes, administración académica y asignaciones docentes.
 
 Las suites de autenticación y persistencia usan ahora sufijos aleatorios en sus claves únicas, por lo que pueden repetirse contra una base persistente sin confundir residuos de fixtures con regresiones. El E2E real fue ejecutado después de reconstruir `api` y `web`; las credenciales se generaron en memoria y no se escribieron en el repositorio.
+
+
+## Matriz ejecutada — API, autorización y UX curricular (25/09/2026)
+
+**Estado: implementación completada.** La cobertura se distribuye entre la integración estructural previa, `curriculum-api.integration.test.ts`, las suites de autorización/académica, RTL y los E2E del Hito 1. Referencias: API.md sección curricular y DECISIONS.md CUR-API-01. No se implementaron mallas pedagógicas para satisfacer pruebas.
+
+| ID local de prueba | Nivel | Caso y resultado verificable |
+|---|---|---|
+| CUR-01 | Unitario | Los cuatro códigos usan curriculum-catalog y subject-curriculum-mapping; no existe alias plural ni cambio a los 13 originales. |
+| CUR-02 | Integración | Sincronizar el catálogo dos veces no duplica permisos ni concede automáticamente permisos nuevos a usuarios/demo. |
+| CUR-03 | HTTP | Sin sesión/revocada: 401 AUTHENTICATION_REQUIRED; escritura sin CSRF: 403 CSRF_TOKEN_INVALID; conservar error.requestId. |
+| CUR-04 | HTTP/DB | Permiso correcto con scope incorrecto, scope correcto sin permiso y combinación de concesiones diferentes: rechazados sin escritura. |
+| CUR-05 | HTTP | subject.manage no autoriza gestionar correspondencias ni catálogo; manage no implica read. |
+| CUR-06 | HTTP/DB | Catálogo compartido: lectura autorizada devuelve planes/áreas/disciplinas, sin datos institucionales inversos; filtros y paginación no filtran datos ajenos. |
+| CUR-07 | HTTP/DB | Crear Diseño Gráfico con Plan Optativo/área NULL conserva clasificación INCOMPLETE; completar área válida conserva UUID y audita. |
+| CUR-08 | HTTP/DB | Área de otro plan: 422 AREA_PLAN_MISMATCH y ninguna escritura; completar área no crea malla. |
+| CUR-09 | HTTP | Duplicidad de code, UUID/referencias inválidos, claves prohibidas y filtros contradictorios producen los errores documentados. |
+| CUR-10 | Seguridad | Administrador institucional con código curriculum-catalog.manage incluso provisionado indebidamente: escritura compartida denegada. Delegación ordinaria del código: DELEGATION_DENIED. |
+| CUR-11 | Seguridad/DB | Operación técnica: exige autorización explícita de acción, TECHNICAL, technicalReason y CSRF; éxito auditado. Tipo TECHNICAL por sí solo o motivo ausente no habilitan operación. |
+| CUR-12 | HTTP/DB | Crear correspondencia sin malla y sin área es válido; consultar materia sin correspondencia devuelve lista vacía. |
+| CUR-13 | HTTP/DB | Solo una vigente por subjectId/btiYear; niveles distintos permitidos; 0/4 se rechazan; AcademicYear no sustituye btiYear. |
+| CUR-14 | Concurrencia DB | Dos POST concurrentes para materia/nivel: exactamente uno crea y el otro devuelve 409; comprobar estado y auditoría. |
+| CUR-15 | HTTP/DB | Retirar preserva UUID y fila; repetir con versión actual es idempotente; versión antigua: STALE_VERSION, sin segundo evento de cambio. |
+| CUR-16 | HTTP/DB | Sustitución deja anterior retirada/nueva vigente; misma materia/nivel; nueva disciplina; ambas filas históricas. Misma disciplina: NO_CHANGE. |
+| CUR-17 | Concurrencia DB | Sustitución vs retiro o dos sustituciones: sin doble vigente ni pérdida de referencia anterior; control de versión/reintentos acotados. |
+| CUR-18 | Transacción DB | Fallo al insertar reemplazo o auditar revierte retiro y creación. Éxito y auditoría son atómicos; errores no exponen Prisma/SQL. |
+| CUR-19 | Seguridad HTTP | Institución A no modifica/consulta correspondencias de B manipulando institutionId/subjectId/mappingId; 404 uniforme sin datos ajenos. |
+| CUR-20 | Seguridad HTTP | Lectura limitada a curso exige courseId autorizado y restringe nivel; asignación docente ajena/finalizada no habilita lectura. Sin Course.btiYear no devuelve todos los niveles. |
+| CUR-21 | Seguridad | COURSE_SET no escribe correspondencia compartida; RESOURCE_SET sigue rechazado y no se habilita incidentalmente. |
+| CUR-22 | HTTP/DB | Subject/Institution inactivos impiden creación/sustitución, conservan lectura histórica autorizada y permiten retiro administrativo como cierre. |
+| CUR-23 | HTTP/DB | Modificar clasificación utilizada de forma que reinterprete historia: HISTORICAL_REFERENCE_CONFLICT; completar área antes desconocida se distingue de reatribuir identidad. |
+| CUR-24 | Contrato | Las respuestas actuales omiten curriculumAvailability. No consultan Curriculum ni generan datos de capacidades/contenidos/indicadores. |
+| CUR-25 | RTL | Crear materia sin selector obligatorio; asociar/retiro/sustitución solo con permisos; confirmaciones, manejo 401/403/409/422 y campos conservados ante conflicto. |
+| CUR-26 | RTL | Mostrar “Sin referencia curricular” o referencia con disponibilidad aún no consultable; área desconocida sin opción ficticia; etiqueta Conducta. |
+| CUR-27 | E2E real | Administrador autorizado asocia/sustituye/retira; docente autorizado consulta; administrador ajeno rechazado. Fixtures solo en prueba, no catálogo ficticio productivo. |
+| CUR-28 | Regresión Hito 1 | Crear materia/asignación sin correspondencia → login docente → consulta propia 200 y ajena 403; no cambiar UUID históricos ni omitir materias por joins. |
+| CUR-29 | Auditoría | Éxitos/rechazos relevantes tienen actor/contexto/acción/resultado; technicalReason en excepción; sin hashes, cookies, credenciales ni datos ajenos. |
+
+Los identificadores CUR-* organizan pruebas locales; no son RF/RNF nuevos. La protección futura de referencias AnnualPlan/Curriculum se conserva como contrato, pero no se crean esos modelos ni fixtures ficticios.
+
+### Ejecución del checkpoint API/UX curricular
+
+| Verificación ejecutada | Resultado |
+|---|---|
+| `npm run prisma:validate` | Schema válido |
+| `npm run prisma:generate` | Prisma Client 6.12.0 generado |
+| `npm run prisma:migrate:deploy -w @edugestor/api` | 5 migraciones; ninguna pendiente |
+| `npm exec -w @edugestor/api prisma migrate status` | Esquema al día |
+| `RUN_DATABASE_TESTS=1 npm run test -w @edugestor/api` | 13 archivos, 77/77 pruebas aprobadas |
+| `npm test` | Shared 1/1, API ordinaria 13/13, Web RTL 10/10 |
+| `npm run typecheck` | Shared, API y web aprobados |
+| `npm run build` | Shared, API y web aprobados; 104 módulos Vite |
+| `npm run test:e2e` | E2E simulado del Hito 1, 1/1 aprobado |
+| `npm run test:e2e:real` | React → Express → PostgreSQL, 2/2 aprobados: curricular y Hito 1; propio 200/ajeno 403 |
+
+La integración curricular nueva comprueba catálogo de 17 permisos sin concesiones demo, autenticación/CSRF, política técnica con concesión explícita, rechazo del administrador ordinario y de una cuenta técnica sin concesión, prohibición de delegación, lectura contextual, aislamiento institucional, rechazo de `COURSE_SET` para escritura, catálogo paginado, omisión de `curriculumAvailability`, unicidad/concurrencia, sustitución, retiro idempotente, historia y auditoría. La integración estructural conserva las pruebas de área nullable, área/plan incompatible, rangos BTI, materia sin correspondencia e independencia de `TeachingAssignment`.
+
+RTL comprueba además materia sin referencia, ausencia de afirmaciones ficticias sobre malla, referencia vigente, área aún no validada y visibilidad de las acciones autorizadas. El E2E curricular real asocia, sustituye, retira, vuelve a asociar, comprueba `404` entre instituciones y valida la lectura docente por curso; el E2E de regresión conserva el recorrido Hito 1. Ambos se ejecutaron con imágenes reconstruidas y credenciales/fixtures efímeros, sin interceptar API ni persistencia.
+
+### Pruebas futuras de disponibilidad — diferidas explícitamente
+
+Al implementar el módulo real de mallas, comprobar NOT_AVAILABLE vs VALIDATED_AVAILABLE para disciplina/nivel exactos, malla confirmada, límites de V1.0 y presentación de los dos estados definitivos. Tener una malla de 2.º no habilita 3.º. Estos casos no son condición de salida del próximo checkpoint y no se registran como ejecutados.
+
+### Ejecución y evidencia esperada para Codex
+
+Usar Vitest, Supertest/PostgreSQL desechable, RTL y Playwright según la configuración existente. Ejecutar typecheck/build/suite ordinaria, integración con RUN_DATABASE_TESTS=1 en base de prueba y E2E real del Hito 1 más recorrido curricular. No declarar que la suite ordinaria cubre las pruebas DB omitidas por defecto. Registrar resultados reales por grupo; reutilizar pruebas estructurales existentes y ampliar solo para contratos/autorización/UX/concurrencia. No modificar bases productivas ni generar migraciones para pruebas de módulos futuros.

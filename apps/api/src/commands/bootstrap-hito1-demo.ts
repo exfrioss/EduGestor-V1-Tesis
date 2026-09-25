@@ -13,7 +13,10 @@ import {
 import { z } from 'zod';
 import { createPrismaClient } from '../database.js';
 import { normalizeLogin } from '../modules/users/normalize-login.js';
-import { PERMISSION_CATALOG } from '../modules/authorization/permission-catalog.js';
+import {
+  HITO1_PERMISSION_CODES,
+  PERMISSION_CATALOG,
+} from '../modules/authorization/permission-catalog.js';
 import { normalizeComparableText } from '../modules/academic/normalization.js';
 import { hashPassword, verifyPassword } from '../security/password.js';
 import { demoPermissionGrantId, HITO1_DEMO_DATA, HITO1_DEMO_IDS } from './hito1-demo.constants.js';
@@ -282,7 +285,7 @@ const provision = async (
     update: { revokedAt: null, revokedById: null, rowVersion: { increment: 1 } },
   });
   const permissions = await transaction.permission.findMany({
-    where: { code: { in: PERMISSION_CATALOG.map(({ code }) => code) } },
+    where: { code: { in: [...HITO1_PERMISSION_CODES] } },
     orderBy: { code: 'asc' },
   });
   for (const [index, permission] of permissions.entries()) {
