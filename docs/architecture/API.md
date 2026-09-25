@@ -219,14 +219,14 @@ La respuesta nunca contiene contraseña ni `passwordHash`.
 
 | Método y ruta | Descripción |
 |---|---|
-| `POST /api/v1/courses` | Crea curso con `institutionId`, `academicYearId`, `grade`, `section` y `shift`. |
+| `POST /api/v1/courses` | Crea curso con `institutionId`, `academicYearId`, `grade`, `section`, `shift` y `btiYear` opcional (`1`, `2`, `3` o `null`). |
 | `GET /api/v1/courses?institutionId=uuid` | Lista solo cursos cubiertos por las concesiones del actor. |
 | `GET /api/v1/courses/:courseId` | Consulta individual autorizada. |
 | `PATCH /api/v1/courses/:courseId` | Actualiza contexto permitido y descriptores. No cambia el año si ya existe historia de asignaciones. |
 | `POST /api/v1/courses/:courseId/deactivate` | Desactiva sin borrar. |
 | `POST /api/v1/courses/:courseId/activate` o `/reactivate` | Reactiva el curso. |
 
-Grado, sección y turno se normalizan antes de aplicar la unicidad institucional/año/curso.
+Grado, sección y turno se normalizan antes de aplicar la unicidad institucional/año/curso. `btiYear` identifica explícitamente el año BTI cuando corresponde; no se infiere desde `grade`.
 
 ### Materias
 
@@ -235,11 +235,11 @@ Grado, sección y turno se normalizan antes de aplicar la unicidad institucional
 | `POST /api/v1/subjects` | Crea materia institucional genérica. |
 | `GET /api/v1/subjects?institutionId=uuid` | Lista materias autorizadas. |
 | `GET /api/v1/subjects/:subjectId` | Consulta individual. |
-| `PATCH /api/v1/subjects/:subjectId` | Actualiza nombre y disciplina curricular opcional. |
+| `PATCH /api/v1/subjects/:subjectId` | Actualiza el nombre institucional. |
 | `POST /api/v1/subjects/:subjectId/deactivate` | Desactiva sin borrar. |
 | `POST /api/v1/subjects/:subjectId/activate` o `/reactivate` | Reactiva la materia. |
 
-`curriculumDiscipline` es opcional. El catálogo no está limitado a `MATEMATICA_APLICADA` y `ALGORITMICA`.
+`Subject` no contiene una clasificación curricular embebida. Las futuras referencias se expresan mediante `SubjectCurriculumMapping`; este checkpoint no publica rutas para administrar esas correspondencias y una materia funciona sin ellas.
 
 ### Asignaciones docentes
 

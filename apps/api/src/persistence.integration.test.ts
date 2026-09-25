@@ -5,10 +5,12 @@ import {
   PrismaClient,
   ScopeKind,
 } from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { afterAll, describe, expect, it } from 'vitest';
 
 const describeDatabase = process.env.RUN_DATABASE_TESTS === '1' ? describe : describe.skip;
 const client = new PrismaClient();
+const suffix = randomUUID().slice(0, 8);
 
 describeDatabase('persistencia Hito 1', () => {
   afterAll(async () => {
@@ -18,14 +20,14 @@ describeDatabase('persistencia Hito 1', () => {
   it('persiste el contexto aprobado y rechaza cruces entre instituciones', async () => {
     const actor = await client.user.create({
       data: {
-        login: 'integration-actor',
-        loginNormalized: 'integration-actor',
+        login: `integration-actor-${suffix}`,
+        loginNormalized: `integration-actor-${suffix}`,
         passwordHash: 'test-only-not-a-real-password-hash',
         accountKind: AccountKind.TECHNICAL,
       },
     });
-    const institutionA = await client.institution.create({ data: { name: 'Institución A' } });
-    const institutionB = await client.institution.create({ data: { name: 'Institución B' } });
+    const institutionA = await client.institution.create({ data: { name: `Institución A ${suffix}` } });
+    const institutionB = await client.institution.create({ data: { name: `Institución B ${suffix}` } });
     const yearA = await client.academicYear.create({
       data: {
         institutionId: institutionA.id,
@@ -104,7 +106,7 @@ describeDatabase('persistencia Hito 1', () => {
     ).rejects.toThrow();
     await client.scopeCourse.create({ data: { scopeId: scope.id, courseId: courseA.id } });
 
-    const role = await client.role.create({ data: { code: 'integration.role', name: 'Integración' } });
+    const role = await client.role.create({ data: { code: `integration.role.${suffix}`, name: 'Integración' } });
     await client.roleAssignment.create({
       data: {
         userId: actor.id,
@@ -127,10 +129,10 @@ describeDatabase('persistencia Hito 1', () => {
 
   it('aplica CHECK, unicidad parcial, diferimiento e inmutabilidad de auditoría', async () => {
     const actor = await client.user.findUniqueOrThrow({
-      where: { loginNormalized: 'integration-actor' },
+      where: { loginNormalized: `integration-actor-${suffix}` },
     });
     const institution = await client.institution.findFirstOrThrow({
-      where: { name: 'Institución A' },
+      where: { name: `Institución A ${suffix}` },
     });
 
     await expect(

@@ -6,7 +6,6 @@ import {
   AccountKind,
   AuditActorKind,
   AuditOutcome,
-  CurriculumDiscipline,
   Prisma,
   ScopeKind,
   type PrismaClient,
@@ -243,12 +242,10 @@ const provision = async (
       institutionId: institution.id,
       name: HITO1_DEMO_DATA.subjectName,
       nameNormalized: normalizeComparableText(HITO1_DEMO_DATA.subjectName),
-      curriculumDiscipline: CurriculumDiscipline.ALGORITMICA,
     },
     update: {
       name: HITO1_DEMO_DATA.subjectName,
       nameNormalized: normalizeComparableText(HITO1_DEMO_DATA.subjectName),
-      curriculumDiscipline: CurriculumDiscipline.ALGORITMICA,
       isActive: true,
       disabledAt: null,
       disabledById: null,
@@ -277,7 +274,7 @@ const provision = async (
   const scope = await transaction.accessScope.upsert({
     where: { id: HITO1_DEMO_IDS.institutionScope },
     create: { id: HITO1_DEMO_IDS.institutionScope, institutionId: institution.id, kind: ScopeKind.INSTITUTION, createdById: technical.id },
-    update: { institutionId: institution.id, kind: ScopeKind.INSTITUTION, createdById: technical.id, rowVersion: { increment: 1 } },
+    update: { institutionId: institution.id, kind: ScopeKind.INSTITUTION, rowVersion: { increment: 1 } },
   });
   const roleAssignment = await transaction.roleAssignment.upsert({
     where: { id: HITO1_DEMO_IDS.administratorAssignment },
@@ -296,7 +293,7 @@ const provision = async (
         roleAssignmentId: roleAssignment.id,
         permissionId: permission.id,
         parentGrantId: null,
-        delegatedById: technical.id,
+        delegatedById: roleAssignment.grantedById,
       },
       update: { revokedAt: null, rowVersion: { increment: 1 } },
     });

@@ -3,7 +3,6 @@ import {
   type AccountKind,
   type AuditActorKind,
   type AuditOutcome,
-  type CurriculumDiscipline,
   type PrismaClient,
 } from '@prisma/client';
 
@@ -69,6 +68,7 @@ const courseSelect = {
   grade: true,
   section: true,
   shift: true,
+  btiYear: true,
   isActive: true,
   disabledAt: true,
   createdAt: true,
@@ -81,7 +81,6 @@ const subjectSelect = {
   id: true,
   institutionId: true,
   name: true,
-  curriculumDiscipline: true,
   isActive: true,
   disabledAt: true,
   createdAt: true,
@@ -276,6 +275,7 @@ export class AcademicRepository {
     grade: string;
     section: string;
     shift: string;
+    btiYear?: number | null;
   }) {
     return this.database.course.create({ data, select: courseSelect });
   }
@@ -304,7 +304,6 @@ export class AcademicRepository {
     institutionId: string;
     name: string;
     nameNormalized: string;
-    curriculumDiscipline?: CurriculumDiscipline | null;
   }) {
     return this.database.subject.create({ data, select: subjectSelect });
   }

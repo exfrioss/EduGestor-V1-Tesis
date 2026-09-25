@@ -48,19 +48,17 @@ export interface Course {
   grade: string;
   section: string;
   shift: string;
+  btiYear: number | null;
   isActive: boolean;
   disabledAt: string | null;
   rowVersion: number;
   academicYear: AcademicYear;
 }
 
-export type CurriculumDiscipline = 'MATEMATICA_APLICADA' | 'ALGORITMICA';
-
 export interface Subject {
   id: string;
   institutionId: string;
   name: string;
-  curriculumDiscipline: CurriculumDiscipline | null;
   isActive: boolean;
   disabledAt: string | null;
   rowVersion: number;

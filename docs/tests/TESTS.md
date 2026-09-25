@@ -231,3 +231,35 @@ Para repetir solo el E2E real, los servicios y el dataset deben existir y las cu
 ```powershell
 npm run test:e2e:real
 ```
+
+## Ejecución del 25/09/2026 — refinamiento estructural curricular
+
+La migración `20260925120000_curriculum_structure_refinement` se validó primero sobre la base persistente actual y después sobre el esquema temporal vacío `curriculum_empty_20260925_1500`.
+
+| Verificación | Resultado |
+|---|---|
+| `npm run prisma:validate -w @edugestor/api` | Schema válido |
+| `npm run prisma:generate -w @edugestor/api` | Prisma Client 6.12.0 generado |
+| Migración sobre base actual | Aplicada; 2 materias, 2 cursos, 3 asignaciones y sus UUID conservados |
+| Valores enum anteriores | 2 referencias preservadas en `AuditLog`; 0 correspondencias inventadas |
+| Migración desde vacío | 5/5 migraciones aplicadas; 21 tablas; `migrate status` al día |
+| Integración con `RUN_DATABASE_TESTS=1` | 12 archivos, 68/68 pruebas aprobadas |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Vite aprobados; 104 módulos transformados |
+| `npm test` | Shared 1/1, API ordinaria 13/13 y Web 8/8 |
+| `npm run test:e2e` | E2E simulado del Hito 1, 1/1 aprobado |
+| `npm run test:e2e:real` | React → Express → PostgreSQL, 1/1 aprobado |
+
+La nueva integración PostgreSQL comprueba:
+
+1. materia institucional sin correspondencia y `TeachingAssignment` independiente;
+2. Algorítmica con correspondencias vigentes para 1.º, 2.º y 3.º BTI;
+3. Matemática Aplicada vinculada al nombre oficial “Matemática Aplicada a la Informática”;
+4. Diseño Gráfico de 3.º BTI en Plan Optativo con `academicAreaId = NULL`;
+5. rechazo de un área perteneciente a otro `PlanType` mediante FK compuesta;
+6. rechazo de dos correspondencias vigentes para la misma materia/año mediante índice único parcial;
+7. retiro y reemplazo conservando ambas filas históricas;
+8. rangos `1..3` de `Course.btiYear` y `SubjectCurriculumMapping.btiYear`;
+9. regresión completa de autenticación, permisos/scopes, administración académica y asignaciones docentes.
+
+Las suites de autenticación y persistencia usan ahora sufijos aleatorios en sus claves únicas, por lo que pueden repetirse contra una base persistente sin confundir residuos de fixtures con regresiones. El E2E real fue ejecutado después de reconstruir `api` y `web`; las credenciales se generaron en memoria y no se escribieron en el repositorio.

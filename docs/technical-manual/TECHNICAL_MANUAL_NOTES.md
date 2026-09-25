@@ -169,7 +169,7 @@ Desactivar `Teacher` actualiza estado, fecha y actor. El trigger PostgreSQL exis
 - `AcademicYear` valida fechas y deja a PostgreSQL imponer etiqueta única y un único año actual por institución.
 - `Course` normaliza grado, sección y turno con colapso de espacios, minúsculas y eliminación de diacríticos antes de la restricción única.
 - Cambiar el año de un curso se rechaza si ya existe historia de `TeachingAssignment`.
-- `Subject` normaliza el nombre comparable. `curriculumDiscipline` es metadato opcional y no restringe el catálogo genérico.
+- `Subject` normaliza el nombre comparable y permanece genérico. No contiene clasificación curricular embebida y funciona sin correspondencias.
 - No existen operaciones de borrado físico.
 
 ### TeachingAssignment
@@ -293,3 +293,21 @@ No usar `docker compose down -v` durante esta comprobación porque elimina el vo
 ### Accesibilidad básica validada
 
 `RouteFocus` enfoca el control inicial o el encabezado de cada ruta incluso cuando la restauración de sesión retrasa el render. Los elementos interactivos muestran contorno `:focus-visible`; el login se recorre por teclado y el botón de salida continúa disponible en el layout responsive. El E2E real comprueba estos puntos esenciales en escritorio y a 390 × 844.
+
+## Estructura curricular preparada
+
+La migración `20260925120000_curriculum_structure_refinement` incorpora únicamente la persistencia aprobada:
+
+- `PlanType`: catálogo global con `code` único.
+- `AcademicArea`: área perteneciente a un plan y única por `(planTypeId, code)`.
+- `CurriculumDiscipline`: disciplina de un plan; el área es opcional. La FK compuesta `(academicAreaId, planTypeId)` evita clasificaciones cruzadas.
+- `SubjectCurriculumMapping`: correspondencia de una materia institucional para un año BTI, con actor de creación/actualización y retiro lógico.
+- `Course.btiYear`: `SmallInt` nullable, explícito y no inferido desde `grade`.
+
+PostgreSQL aplica dos restricciones que Prisma no puede expresar completamente: los rangos `1..3` mediante `CHECK` y una sola correspondencia vigente mediante un índice único parcial sobre `(subjectId, btiYear) WHERE retiredAt IS NULL`.
+
+El enum anterior de `Subject` no contenía año BTI. La migración registra sus valores no nulos en `AuditLog` y luego retira la columna/tipo, sin fabricar correspondencias ambiguas. `Subject` y `TeachingAssignment` no hacen `JOIN` obligatorio con las nuevas tablas.
+
+No hay router, controlador, servicio ni frontend de administración curricular en este checkpoint. Las filas usadas por las pruebas se crean directamente con Prisma contra una base desechable. Añadir esa API requiere antes aprobar permisos, contratos y reglas de auditoría.
+
+El formulario de materias muestra únicamente el nombre institucional. El selector “Disciplina curricular” fue retirado porque representaba el enum sustituido; no se reemplazó con opciones sintéticas.

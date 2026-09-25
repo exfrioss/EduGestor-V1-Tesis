@@ -1,5 +1,3 @@
-import type { CurriculumDiscipline } from '@prisma/client';
-
 export interface OperationContext {
   actorUserId: string;
   requestId: string;
@@ -48,6 +46,7 @@ export interface CreateCourseInput {
   grade: string;
   section: string;
   shift: string;
+  btiYear?: number | null;
 }
 
 export interface UpdateCourseInput {
@@ -55,17 +54,16 @@ export interface UpdateCourseInput {
   grade?: string;
   section?: string;
   shift?: string;
+  btiYear?: number | null;
 }
 
 export interface CreateSubjectInput {
   institutionId: string;
   name: string;
-  curriculumDiscipline?: CurriculumDiscipline | null;
 }
 
 export interface UpdateSubjectInput {
   name?: string;
-  curriculumDiscipline?: CurriculumDiscipline | null;
 }
 
 export interface CreateTeachingAssignmentInput {

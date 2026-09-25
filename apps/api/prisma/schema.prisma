@@ -18,11 +18,6 @@ enum ScopeKind {
   RESOURCE_SET
 }
 
-enum CurriculumDiscipline {
-  MATEMATICA_APLICADA
-  ALGORITMICA
-}
-
 enum AuditActorKind {
   USER
   TECHNICAL
@@ -41,24 +36,26 @@ model User {
   loginNormalized String      @unique @db.Text
   passwordHash    String      @db.Text
   accountKind     AccountKind @default(STANDARD)
-  isActive         Boolean     @default(true)
+  isActive        Boolean     @default(true)
   disabledAt      DateTime?   @db.Timestamptz(3)
   createdAt       DateTime    @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
   rowVersion      Int         @default(1)
 
-  authSessions           AuthSession[]
-  teacher               Teacher?
-  roleAssignments        RoleAssignment[]          @relation("RoleAssignmentUser")
-  assignmentsGranted     RoleAssignment[]          @relation("RoleAssignmentGrantedBy")
-  assignmentsRevoked     RoleAssignment[]          @relation("RoleAssignmentRevokedBy")
-  accessScopesCreated    AccessScope[]              @relation("AccessScopeCreatedBy")
-  permissionsDelegated   RoleAssignmentPermission[] @relation("PermissionDelegatedBy")
-  institutionsDisabled   Institution[]              @relation("InstitutionDisabledBy")
-  teachersDisabled       Teacher[]                  @relation("TeacherDisabledBy")
-  coursesDisabled        Course[]                   @relation("CourseDisabledBy")
-  subjectsDisabled       Subject[]                  @relation("SubjectDisabledBy")
-  auditLogs              AuditLog[]                 @relation("AuditActor")
+  authSessions              AuthSession[]
+  teacher                   Teacher?
+  roleAssignments           RoleAssignment[]           @relation("RoleAssignmentUser")
+  assignmentsGranted        RoleAssignment[]           @relation("RoleAssignmentGrantedBy")
+  assignmentsRevoked        RoleAssignment[]           @relation("RoleAssignmentRevokedBy")
+  accessScopesCreated       AccessScope[]              @relation("AccessScopeCreatedBy")
+  permissionsDelegated      RoleAssignmentPermission[] @relation("PermissionDelegatedBy")
+  institutionsDisabled      Institution[]              @relation("InstitutionDisabledBy")
+  teachersDisabled          Teacher[]                  @relation("TeacherDisabledBy")
+  coursesDisabled           Course[]                   @relation("CourseDisabledBy")
+  subjectsDisabled          Subject[]                  @relation("SubjectDisabledBy")
+  curriculumMappingsCreated SubjectCurriculumMapping[] @relation("CurriculumMappingCreatedBy")
+  curriculumMappingsUpdated SubjectCurriculumMapping[] @relation("CurriculumMappingUpdatedBy")
+  auditLogs                 AuditLog[]                 @relation("AuditActor")
 }
 
 model AuthSession {
@@ -109,8 +106,8 @@ model AccessScope {
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
   rowVersion    Int       @default(1)
 
-  institution Institution     @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  createdBy   User            @relation("AccessScopeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  institution Institution      @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  createdBy   User             @relation("AccessScopeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   courses     ScopeCourse[]
   assignments RoleAssignment[]
 
@@ -166,11 +163,11 @@ model RoleAssignmentPermission {
   updatedAt        DateTime  @updatedAt @db.Timestamptz(3)
   rowVersion       Int       @default(1)
 
-  assignment   RoleAssignment           @relation(fields: [roleAssignmentId], references: [id], onDelete: Restrict)
-  permission   Permission               @relation(fields: [permissionId], references: [id], onDelete: Restrict)
-  parentGrant  RoleAssignmentPermission?  @relation("PermissionDelegation", fields: [parentGrantId], references: [id], onDelete: Restrict)
-  childGrants  RoleAssignmentPermission[] @relation("PermissionDelegation")
-  delegatedBy  User                       @relation("PermissionDelegatedBy", fields: [delegatedById], references: [id], onDelete: Restrict)
+  assignment  RoleAssignment             @relation(fields: [roleAssignmentId], references: [id], onDelete: Restrict)
+  permission  Permission                 @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+  parentGrant RoleAssignmentPermission?  @relation("PermissionDelegation", fields: [parentGrantId], references: [id], onDelete: Restrict)
+  childGrants RoleAssignmentPermission[] @relation("PermissionDelegation")
+  delegatedBy User                       @relation("PermissionDelegatedBy", fields: [delegatedById], references: [id], onDelete: Restrict)
 
   @@unique([roleAssignmentId, permissionId])
   @@index([parentGrantId])
@@ -260,6 +257,7 @@ model Course {
   grade          String    @db.Text
   section        String    @db.Text
   shift          String    @db.Text
+  btiYear        Int?      @db.SmallInt
   isActive       Boolean   @default(true)
   disabledAt     DateTime? @db.Timestamptz(3)
   disabledById   String?   @db.Uuid
@@ -267,10 +265,10 @@ model Course {
   updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
   rowVersion     Int       @default(1)
 
-  institution        Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  academicYear       AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
-  disabledBy         User?                @relation("CourseDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
-  scopeMemberships   ScopeCourse[]
+  institution         Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  academicYear        AcademicYear         @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  disabledBy          User?                @relation("CourseDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
+  scopeMemberships    ScopeCourse[]
   teachingAssignments TeachingAssignment[]
 
   @@unique([institutionId, academicYearId, grade, section, shift])
@@ -282,26 +280,95 @@ model Course {
 }
 
 model Subject {
-  id                   String                @id @default(uuid()) @db.Uuid
-  institutionId        String                @db.Uuid
-  name                 String                @db.Text
-  nameNormalized       String                @db.Text
-  curriculumDiscipline CurriculumDiscipline?
-  isActive             Boolean               @default(true)
-  disabledAt           DateTime?             @db.Timestamptz(3)
-  disabledById         String?               @db.Uuid
-  createdAt            DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime              @updatedAt @db.Timestamptz(3)
-  rowVersion           Int                   @default(1)
+  id             String    @id @default(uuid()) @db.Uuid
+  institutionId  String    @db.Uuid
+  name           String    @db.Text
+  nameNormalized String    @db.Text
+  isActive       Boolean   @default(true)
+  disabledAt     DateTime? @db.Timestamptz(3)
+  disabledById   String?   @db.Uuid
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+  rowVersion     Int       @default(1)
 
-  institution        Institution          @relation(fields: [institutionId], references: [id], onDelete: Restrict)
-  disabledBy         User?                @relation("SubjectDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
+  institution         Institution                @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  disabledBy          User?                      @relation("SubjectDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
   teachingAssignments TeachingAssignment[]
+  curriculumMappings  SubjectCurriculumMapping[]
 
   @@unique([institutionId, nameNormalized])
   @@unique([id, institutionId])
   @@index([institutionId, isActive])
   @@index([disabledById])
+}
+
+model PlanType {
+  id         String   @id @default(uuid()) @db.Uuid
+  code       String   @unique @db.Text
+  name       String   @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  rowVersion Int      @default(1)
+
+  academicAreas AcademicArea[]
+  disciplines   CurriculumDiscipline[]
+}
+
+model AcademicArea {
+  id         String   @id @default(uuid()) @db.Uuid
+  planTypeId String   @db.Uuid
+  code       String   @db.Text
+  name       String   @db.Text
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  rowVersion Int      @default(1)
+
+  planType    PlanType               @relation(fields: [planTypeId], references: [id], onDelete: Restrict)
+  disciplines CurriculumDiscipline[]
+
+  @@unique([planTypeId, code])
+  @@unique([id, planTypeId])
+}
+
+model CurriculumDiscipline {
+  id             String   @id @default(uuid()) @db.Uuid
+  planTypeId     String   @db.Uuid
+  academicAreaId String?  @db.Uuid
+  code           String   @db.Text
+  officialName   String   @db.Text
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime @updatedAt @db.Timestamptz(3)
+  rowVersion     Int      @default(1)
+
+  planType     PlanType                   @relation(fields: [planTypeId], references: [id], onDelete: Restrict)
+  academicArea AcademicArea?              @relation(fields: [academicAreaId, planTypeId], references: [id, planTypeId], onDelete: Restrict)
+  mappings     SubjectCurriculumMapping[]
+
+  @@unique([planTypeId, code])
+  @@index([academicAreaId, planTypeId])
+}
+
+model SubjectCurriculumMapping {
+  id                     String    @id @default(uuid()) @db.Uuid
+  subjectId              String    @db.Uuid
+  btiYear                Int       @db.SmallInt
+  curriculumDisciplineId String    @db.Uuid
+  retiredAt              DateTime? @db.Timestamptz(3)
+  createdById            String    @db.Uuid
+  updatedById            String    @db.Uuid
+  createdAt              DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime  @updatedAt @db.Timestamptz(3)
+  rowVersion             Int       @default(1)
+
+  subject              Subject              @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  curriculumDiscipline CurriculumDiscipline @relation(fields: [curriculumDisciplineId], references: [id], onDelete: Restrict)
+  createdBy            User                 @relation("CurriculumMappingCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy            User                 @relation("CurriculumMappingUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([subjectId, btiYear, createdAt])
+  @@index([curriculumDisciplineId])
+  @@index([createdById])
+  @@index([updatedById])
 }
 
 model TeachingAssignment {
