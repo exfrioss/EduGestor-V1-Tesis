@@ -1,5 +1,17 @@
 # Changelog
 
+## 25/09/2026 — Contratos curriculares, permisos y UX aprobados (documentación)
+
+- Se verificaron los dos archivos reales del catálogo: convención recurso.acción y sincronización idempotente por código.
+- Se documentaron curriculum-catalog.read/manage y subject-curriculum-mapping.read/manage, en singular, sin modificar los 13 permisos implementados.
+- API.md define 13 rutas futuras de lectura/escritura del catálogo y creación/consulta/retiro/sustitución de correspondencias, solicitudes, respuestas, errores y autorización.
+- Se conservaron error.requestId y los códigos existentes de autenticación, autorización y CSRF; no se cambiaron contratos del Hito 1.
+- DECISIONS.md, recibido vacío, registra CUR-API-01: administración técnica excepcional sin scope global ni delegación institucional, historia/concurrencia, UX y límites del checkpoint.
+- curriculumAvailability queda reservado al contrato futuro y omitido en el checkpoint; no se simula disponibilidad ni ausencia de mallas y no se exige implementar Curriculum, capacidades, contenidos o indicadores.
+- PROJECT_CONTEXT.md registra la aprobación y el siguiente checkpoint de implementación; TESTS.md añade casos previstos, no ejecutados.
+- Solo se actualizaron API.md, DECISIONS.md, PROJECT_CONTEXT.md, CHANGELOG.md y TESTS.md. No se modificaron documentos normativos, TypeScript, Prisma ni migraciones. No se ejecutaron suites de aplicación en esta tarea documental.
+
+
 ## 25/09/2026 — Refinamiento estructural curricular
 
 - Se añadieron `PlanType`, `AcademicArea`, `CurriculumDiscipline` y `SubjectCurriculumMapping` al esquema Prisma aprobado.

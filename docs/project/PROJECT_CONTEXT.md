@@ -69,4 +69,29 @@ Validación desde vacío:
 
 ### Siguiente checkpoint exacto
 
-**Definir y aprobar los contratos API, permisos y casos de uso para administrar PlanType, AcademicArea, CurriculumDiscipline y SubjectCurriculumMapping; después implementar ese módulo sin acoplar TeachingAssignment ni ampliar todavía el currículo pedagógico.**
+**Etapa de definición y aprobación completada en la actualización documental siguiente. El próximo checkpoint pasa a implementación API/UX, con el alcance exacto indicado al final de este documento.**
+
+
+## CHECKPOINT DOCUMENTAL APROBADO — API, autorización y UX curricular
+
+**Fecha:** 25/09/2026. **Estado:** especificación aprobada y documentada; implementación pendiente. La evidencia de implementación/pruebas del refinamiento estructural anterior se conserva y no representa ejecución de las nuevas APIs.
+
+- Convención verificada en permission-catalog.ts y bootstrap-authorization-catalog.ts: recurso.acción, singular, minúsculas/kebab-case.
+- Códigos aprobados: `curriculum-catalog.read`, `curriculum-catalog.manage`, `subject-curriculum-mapping.read`, `subject-curriculum-mapping.manage`. Hoy el código adjunto conserva 13 permisos; incorporar los cuatro será trabajo de implementación.
+- Catálogo compartido: lectura contextual y escritura técnica excepcional explícita/auditada. No conceder administración compartida a administradores institucionales ni crear scope global. Revisar bootstrap/provisionadores para evitar otorgar automáticamente los nuevos permisos.
+- Correspondencias: lectura por ámbito; creación/retiro/sustitución institucional con unicidad vigente, rowVersion, transacción y auditoría. RESOURCE_SET permanece no soportado.
+- API.md define solicitudes/respuestas/errores y mantiene error.requestId y los errores existentes de sesión/CSRF/permisos. DECISIONS.md registra CUR-API-01; TESTS.md separa casos pendientes de evidencia previa.
+- curriculumAvailability permanece futuro y se omite ahora. La UI no afirma disponibilidad ni ausencia de malla sin poder consultarla. No se requiere implementar Curriculum, capacidades, contenidos, indicadores, planificación o IA.
+- UX: Inicio → Institución → Curso → Materia → espacio de trabajo; referencia opcional en Materias, área desconocida permitida y etiqueta Conducta para comportamiento.
+- Hito 1 conserva 16 entidades, materias/asignaciones sin correspondencia y aislamiento docente/institucional.
+
+### Siguiente checkpoint exacto para Codex — Implementar API y UX de referencias curriculares
+
+1. Leer REQUIREMENTS.md revisión 4, DATABASE.md aprobado, API.md sección curricular, CUR-API-01 de DECISIONS.md y la matriz pendiente en TESTS.md. Respetar las instrucciones del repositorio.
+2. Revisar el código actual de autorización técnica, bootstrap de catálogo y provisionadores demo; reutilizar las cuatro entidades ya implementadas. No rehacer su migración ni añadir un scope nuevo. Mantener los archivos normativos intactos.
+3. Añadir exactamente los cuatro permisos a la convención existente y su sincronización idempotente, sin concesión automática ni vía de delegación institucional del permiso compartido.
+4. Implementar lecturas del catálogo y correspondencias, después creación/retiro/sustitución y escrituras técnicas excepcionales. Reutilizar sesión/CSRF/errores/auditoría; resolver ámbito en servidor y proteger concurrencia.
+5. Adaptar Materias para referencia opcional y acciones según permiso. No generar catálogos ficticios productivos. Omitir curriculumAvailability; mostrar su limitación sin consultar modelos futuros ni bloquear Hito 1.
+6. Ejecutar los casos de TESTS.md para este checkpoint y la regresión del Hito 1. Registrar comandos, resultados reales y limitaciones; no reemplazar evidencia histórica ni declarar casos futuros como aprobados.
+
+**Criterio de salida:** rutas y UX contractuales implementadas; pruebas HTTP/PostgreSQL, permisos/concurrencia y recorrido real aprobadas; materia sin correspondencia sigue operativa; ningún dato curricular inventado; sin ampliación hacia mallas, planificación o IA. Si el mecanismo de autorización técnica necesita una decisión no cubierta, documentar el punto y mantener esas escrituras denegadas, sin introducir privilegios globales por defecto.
