@@ -2,9 +2,12 @@
 
 **Destino:** `docs/architecture/DATABASE.md`  
 **Fecha de diseño:** 24 de septiembre de 2026.  
+**Actualización:** 25 de septiembre de 2026 — refinamiento curricular aprobado; clasificación parcial sin áreas ficticias.  
 **Plataforma:** PostgreSQL + Prisma ORM.  
-**Línea base exclusiva:** `REQUIREMENTS.md`, V1.0, revisión documental 4, del 22 de septiembre de 2026; 34 RF y 15 RNF; D-01 a D-07 RESUELTAS.  
+**Línea base de requisitos:** `REQUIREMENTS.md`, V1.0, revisión documental 4, del 22 de septiembre de 2026; 34 RF y 15 RNF; D-01 a D-07 RESUELTAS.  
 **Huella SHA-256 de la línea base:** `fe5c576790abf959b92bf0bf910bc1d8df26392c15ba961e15d5b42f2c333c69`.
+
+Este documento incorpora el refinamiento curricular aprobado el 25 de septiembre de 2026 sin modificar la revisión 4 de `REQUIREMENTS.md`, sus 34 RF, sus 15 RNF ni las decisiones D-01 a D-07.
 
 Este documento diseña la persistencia del alcance aprobado. No modifica requisitos ni incorpora nuevos módulos funcionales. Las tablas auxiliares, versiones y estados técnicos sirven para garantizar integridad, autorización, revisión humana y trazabilidad. No se incluyen todavía un esquema Prisma ejecutable, migraciones ni código de aplicación.
 
@@ -99,8 +102,8 @@ Los datos globales de `Student` se alcanzan a través de una matrícula autoriza
 |---|---|---|
 | `Institution` | Institución: `name`, campos de identificación definidos por RF-003, activación común. | 1:N años lectivos, cursos, materias y ámbitos. El nombre no se presume único globalmente. |
 | `AcademicYear` | Año lectivo institucional: `institutionId FK Institution`, `label`, `startsOn`, `endsOn`, `isCurrent`. | `UNIQUE(institutionId, label)`; `CHECK(startsOn <= endsOn)`; único parcial `(institutionId) WHERE isCurrent`. Puede no existir un año activo; nunca dos para la misma institución. |
-| `Course` | Curso/sección: `institutionId FK Institution`, `academicYearId FK AcademicYear`, `grade`, `section`, `shift`, activación común. | `UNIQUE(institutionId, academicYearId, grade, section, shift)`. Grado, sección y turno se normalizan antes de comparar. Año e institución deben coincidir. |
-| `Subject` | Materia institucional: `institutionId FK Institution`, `name`, `nameNormalized`, `curriculumDiscipline?`, activación común. | `UNIQUE(institutionId, nameNormalized)`. El código curricular opcional solo vincula las dos disciplinas curriculares aprobadas; no limita la gestión general de materias a ellas. |
+| `Course` | Curso/sección: `institutionId FK Institution`, `academicYearId FK AcademicYear`, `grade`, `section`, `shift`, `btiYear? SmallInt`, activación común. | `UNIQUE(institutionId, academicYearId, grade, section, shift)`. Grado, sección y turno se normalizan antes de comparar. Año e institución deben coincidir. `btiYear` es NULL o 1, 2, 3; no es obligatorio para crear el curso. |
+| `Subject` | Materia institucional: `institutionId FK Institution`, `name`, `nameNormalized`, activación común. | `UNIQUE(institutionId, nameNormalized)`. Catálogo institucional genérico; tiene cero o más correspondencias por año en SubjectCurriculumMapping y puede operar sin referencia ni malla curricular. |
 | `Teacher` | Identidad docente: `userId FK User`, `displayName`, datos básicos aprobados, activación común. | `UNIQUE(userId)`: User 1:0..1 Teacher. Puede tener varias vinculaciones institucionales y roles adicionales. |
 | `TeacherInstitution` | Vinculación institucional del docente: `teacherId FK Teacher`, `institutionId FK Institution`, `endedAt?`. | `UNIQUE(teacherId, institutionId)`. Rehabilitar una vinculación conserva su identidad; los cambios quedan auditados. No reemplaza roles ni asignaciones académicas. |
 | `TeachingAssignment` | Docente–Curso–Materia: `teacherId FK Teacher`, `institutionId FK Institution`, `courseId FK Course`, `subjectId FK Subject`, `gradingScaleId? FK GradingScale`, `endedAt?`. | `UNIQUE(teacherId, courseId, subjectId)`. FK compuesta `(teacherId, institutionId)` a TeacherInstitution. Curso, materia y escala, si existe, pertenecen a la institución. El año se obtiene del curso. |
@@ -108,6 +111,8 @@ Los datos globales de `Student` se alcanzan a través de una matrícula autoriza
 | `Enrollment` | Matrícula: `studentId FK Student`, `courseId FK Course`, `academicYearId FK AcademicYear`. | `UNIQUE(studentId, courseId, academicYearId)`. FK compuesta `(courseId, academicYearId)` a Course. No se impone matrícula única por estudiante y año en toda la aplicación. |
 
 ### 3.1. Integridad del contexto
+
+`AcademicYear` representa el año lectivo institucional; `Course.btiYear` representa el nivel 1.º, 2.º o 3.º BTI cuando corresponde. Este último se informa explícitamente y debe ser coherente con `grade`; no se interpreta automáticamente cualquier “3.º” como 3.º BTI. Su ausencia no bloquea materias, asignaciones ni el Hito 1, pero debe resolverse antes de vincular planificación curricular BTI.
 
 Se agregan claves candidatas compuestas de soporte: `AcademicYear(id, institutionId)`, `Course(id, institutionId)`, `Course(id, academicYearId)`, `Subject(id, institutionId)` y `GradingScale(id, institutionId)`. Permiten FK compuestas desde los registros que repiten contexto y evitan relaciones entre instituciones incompatibles. No son identidades alternativas expuestas al público.
 
@@ -188,9 +193,13 @@ Consultar/imprimir un informe lee sus propios datos. No genera automáticamente 
 
 | Entidad | Propósito y campos principales | Claves y reglas |
 |---|---|---|
+| `PlanType` | Tipo de plan curricular: `code`, `name`. | `UNIQUE(code)`. PlanType 1:N AcademicArea y 1:N CurriculumDiscipline. |
+| `AcademicArea` | Área académica: `planTypeId FK PlanType`, `code`, `name`. | `UNIQUE(planTypeId, code)` y clave candidata `UNIQUE(id, planTypeId)` para integridad compuesta. |
+| `CurriculumDiscipline` | Disciplina curricular: `planTypeId FK PlanType`, `academicAreaId? FK AcademicArea`, `code`, `officialName`. | `UNIQUE(planTypeId, code)`. Plan obligatorio, área nullable. Si existe área, FK compuesta `(academicAreaId, planTypeId)` a AcademicArea `(id, planTypeId)` garantiza que pertenece al mismo plan. |
+| `SubjectCurriculumMapping` | Correspondencia institucional por nivel BTI: `subjectId FK Subject`, `btiYear SmallInt`, `curriculumDisciplineId FK CurriculumDiscipline`, `retiredAt?`, `createdById`, `updatedById`. | `btiYear IN (1,2,3)`. Índice único parcial `(subjectId, btiYear) WHERE retiredAt IS NULL`: una correspondencia vigente. Las retiradas se conservan. |
 | `CurriculumDocument` | Documento oficial o expresamente validado: `title`, `sourceKind`, `sourceReference`, `storageKey?`, `sha256?`, `validatedById? FK User`, `validatedAt?`. | `sourceKind` OFICIAL o VALIDADA. Una fuente validada exige actor y fecha. Una referencia externa y/o el archivo permite localizar la fuente. |
 | `CurriculumSourceReference` | Ubicación trazable: `documentId FK CurriculumDocument`, `page?`, `section?`, `originReference?`. | `page > 0` cuando exista. Documento obligatorio; página/sección se conservan si están disponibles, sin inventarlas. |
-| `Curriculum` | Versión curricular: `discipline`, `btiYear SmallInt`, `version`, `title`, `sourceReferenceId FK CurriculumSourceReference`, `confirmedById FK User`, `confirmedAt`. | `UNIQUE(discipline, btiYear, version)`; `btiYear IN (1,2,3)`; `version > 0`. Solo las dos disciplinas aprobadas. |
+| `Curriculum` | Malla curricular versionada: `curriculumDisciplineId FK CurriculumDiscipline`, `btiYear SmallInt`, `version`, `title`, `sourceReferenceId FK CurriculumSourceReference`, `confirmedById FK User`, `confirmedAt`. | `UNIQUE(curriculumDisciplineId, btiYear, version)`; `btiYear IN (1,2,3)`; `version > 0`. Mallas completas limitadas a las dos disciplinas aprobadas; una disciplina del catálogo puede no tener ninguna malla. |
 | `Competency` | Competencia identificada en la fuente: `curriculumId FK Curriculum`, `code?`, `description`, `sourceReferenceId FK CurriculumSourceReference`. | Curriculum 1:N competencias. No se inventan competencias para documentos que no las distingan. |
 | `Capacity` | Capacidad curricular: `curriculumId FK Curriculum`, `competencyId? FK Competency`, `code?`, `description`, `sourceReferenceId FK CurriculumSourceReference`. | Competencia opcional y, cuando existe, del mismo currículo. |
 | `CurriculumContent` | Contenido curricular: `curriculumId FK Curriculum`, `code?`, `description`, `sourceReferenceId FK CurriculumSourceReference`. | Curriculum 1:N contenidos. No se presume unicidad global del texto o código. |
@@ -202,6 +211,31 @@ Consultar/imprimir un informe lee sus propios datos. No genera automáticamente 
 Una sesión corresponde a un currículo de una disciplina y año; si un documento contiene varios, puede originar varias sesiones explícitas. Esto no implica lectura universal de formatos: solo se aceptan los documentos soportados por RF-027.
 
 Las referencias mantienen el documento de origen aunque no sea posible determinar página o sección. Las relaciones M:N evitan duplicar un contenido o indicador cuando la fuente lo vincula con varias capacidades. No se infieren asociaciones que la fuente o su validación no establezcan.
+
+### 7.1.1. Jerarquía completa y clasificación parcial
+
+La jerarquía oficial completa es **PlanType → AcademicArea → CurriculumDiscipline**. Cada disciplina conserva también `planTypeId` obligatorio para representar el tipo de plan conocido cuando el área aún no está validada. Un área NULL significa clasificación incompleta, no ausencia de tipo de plan ni malla validada. No se crean áreas ficticias como “Pendiente”. Cuando se completa el área, la FK compuesta exige el mismo tipo de plan; la FK directa a PlanType sigue siendo obligatoria incluso con área NULL.
+
+Los códigos de catálogo son identificadores internos estables, no supuestos códigos oficiales. No se exige nombre de disciplina globalmente único. Los nombres y ubicaciones se registran conforme a fuentes oficiales o expresamente validadas, sin deducir áreas a partir del nombre de la materia. Completar un área antes desconocida conserva el UUID y queda auditado. No se cambia silenciosamente el tipo de plan o una ubicación ya utilizada para reinterpretar historia.
+
+| Materia institucional / referencia | Tratamiento V1.0 |
+|---|---|
+| Matemática Aplicada / Matemática Aplicada a la Informática | Correspondencias para 1.º–3.º BTI y seis combinaciones de mallas comprometidas junto con Algorítmica. El nombre institucional puede mantenerse como Matemática Aplicada. |
+| Algorítmica / Algorítmica | Correspondencias para 1.º–3.º BTI y mallas completas oficiales o validadas. |
+| Dibujo Técnico | Puede existir como materia y como disciplina de referencia sin exigir su malla completa. La materia también funciona sin correspondencia. |
+| Diseño Gráfico | Puede relacionarse con 3.º BTI y una disciplina de Plan Optativo, manteniendo `academicAreaId = NULL` hasta disponer de fuente validada para el área. No exige malla completa en V1.0. |
+
+La existencia de un registro de disciplina o de correspondencia no habilita incorporar su malla completa. RF-026/RF-027 mantienen la carga y validación de mallas exclusivamente para Matemática Aplicada a la Informática y Algorítmica, en 1.º, 2.º y 3.º BTI. Esa delimitación se verifica al confirmar la carga y no mediante un enum que limite todo el catálogo de referencias a dos nombres. No se crean filas Curriculum vacías para representar una clasificación parcial.
+
+### 7.1.2. Correspondencias, autorización e historia
+
+Subject 1:N SubjectCurriculumMapping y CurriculumDiscipline 1:N SubjectCurriculumMapping permiten vincular materias institucionales de distintas instituciones a la misma referencia oficial, según nivel BTI. Un Subject puede tener cero correspondencias; una correspondencia puede existir con cero versiones de Curriculum disponibles. El tipo de plan y el área se resuelven a través de la disciplina; no se duplican en Subject ni en la correspondencia.
+
+El año de la correspondencia es `btiYear`, no `AcademicYear`. La unicidad vigente es por `(subjectId, btiYear)`, no solo por la terna con disciplina: la terna permitiría dos referencias simultáneas ambiguas para una misma materia y nivel. V1.0 no incorpora variantes simultáneas por sección o turno.
+
+Modificar una correspondencia usada exige retirar la anterior y crear la nueva en una transacción auditada. Sus claves de materia, año y disciplina no se reescriben para alterar planes existentes. La unicidad parcial evita dos correspondencias vigentes incluso con operaciones concurrentes. Los planes históricos conservan la correspondencia retirada y el currículo concreto que utilizaron; retirarla no elimina ni invalida sus datos históricos, pero impide utilizarla para crear planes nuevos.
+
+La administración de correspondencias requiere permisos en el ámbito de la institución de Subject. Compartir una disciplina no concede acceso a materias, planes ni asignaciones de otra institución. Administrar una materia no otorga automáticamente permisos para modificar el catálogo curricular compartido. Las FK de catálogo, correspondencias, currículo y planes usan eliminación restrictiva; no hay borrado en cascada ni reemplazo de UUID históricos.
 
 ### 7.2. Confirmación e historia curricular
 
@@ -215,7 +249,7 @@ Una versión curricular referenciada por planes no se reemplaza ni se borra fís
 
 | Entidad | Propósito y campos principales | Claves y reglas |
 |---|---|---|
-| `AnnualPlan` | Plan anual de una asignación: `teachingAssignmentId FK TeachingAssignment`, `curriculumId FK Curriculum`, `title`, `state`, `createdById`. | `UNIQUE(teachingAssignmentId)`. Año lectivo derivado de su curso. Currículo compatible con materia y grado BTI. |
+| `AnnualPlan` | Plan anual de una asignación: `teachingAssignmentId FK TeachingAssignment`, `curriculumId FK Curriculum`, `subjectCurriculumMappingId FK SubjectCurriculumMapping`, `title`, `state`, `createdById`. | `UNIQUE(teachingAssignmentId)`. Conserva la versión de malla y la correspondencia utilizada. Año lectivo derivado del curso; compatibilidad conforme a las reglas siguientes. |
 | `AnnualPlanItem` | Entrada anual: `annualPlanId FK AnnualPlan`, `position Int`, `unit`, `capacityId FK Capacity`, `plannedHours Decimal`, `estimatedStartOn`, `estimatedEndOn`, `state`. | `UNIQUE(annualPlanId, position)`; horas no negativas; inicio <= fin; capacidad del currículo del plan. |
 | `AnnualPlanItemContent` | Contenidos de la entrada: `annualPlanItemId FK AnnualPlanItem`, `contentId FK CurriculumContent`. | `UNIQUE(annualPlanItemId, contentId)`; currículo y capacidad compatibles. |
 | `AnnualPlanItemIndicator` | Indicadores de la entrada: `annualPlanItemId FK AnnualPlanItem`, `indicatorId FK Indicator`. | `UNIQUE(annualPlanItemId, indicatorId)`; currículo y capacidad compatibles. |
@@ -223,6 +257,15 @@ Una versión curricular referenciada por planes no se reemplaza ni se borra fís
 | `DailyPlanItem` | Capacidad y referencia anual del plan diario: `dailyPlanId FK DailyPlan`, `annualPlanItemId FK AnnualPlanItem`, `position Int`, `capacityId FK Capacity`. | `UNIQUE(dailyPlanId, position)`. Ítem anual pertenece al plan anual del diario; capacidad coincide con la del ítem anual. |
 | `DailyPlanItemIndicator` | Indicadores diarios: `dailyPlanItemId FK DailyPlanItem`, `indicatorId FK Indicator`. | `UNIQUE(dailyPlanItemId, indicatorId)`; indicador compatible con capacidad/currículo y planificación anual de origen. |
 | `CurriculumProgressRecord` | Horas efectivamente desarrolladas: `annualPlanItemId FK AnnualPlanItem`, `dailyPlanItemId? FK DailyPlanItem`, `activityDate`, `developedHours Decimal`, `recordedById FK User`, `operationKey UUID`. | `developedHours >= 0`; `UNIQUE(recordedById, operationKey)` para reintentos idempotentes. Si hay ítem diario, debe corresponder al mismo ítem anual. |
+
+Al crear o cambiar explícitamente la referencia de un plan anual, se comprueba en una transacción:
+
+- La materia de TeachingAssignment coincide con `SubjectCurriculumMapping.subjectId` y pertenece a la institución del curso.
+- `Course.btiYear`, `SubjectCurriculumMapping.btiYear` y `Curriculum.btiYear` coinciden y están informados.
+- La disciplina de la correspondencia coincide con `Curriculum.curriculumDisciplineId`.
+- La correspondencia está vigente al seleccionarla y el currículo es una versión confirmada de las mallas admitidas en V1.0.
+
+Estas comparaciones entre tablas requieren FK compuestas equivalentes o constraint triggers, además de validación transaccional del backend; no se representan como CHECK con consultas. Una correspondencia retirada sigue siendo válida como referencia histórica de planes que ya la utilizaron. Consultar un plan histórico utiliza sus FK guardadas, no vuelve a resolver automáticamente la correspondencia vigente ni la versión más reciente de la malla.
 
 `resources`, `evidences` y `evaluation` del plan diario son textos de planificación: no son archivos de informe grupal ni resultados académicos. Su edición no altera `Assessment` ni `AssessmentResult`.
 
@@ -345,7 +388,7 @@ Desactivar `Teacher` bloquea el login de su cuenta y revoca sesiones existentes,
 | `AttendanceStatus` | PRESENTE, AUSENTE, LLEGADA_TARDIA, SALIDA_ANTICIPADA | Justificación como atributo independiente. |
 | `GroupReportCategory` | AUSENCIA_COLECTIVA, RETIRO_COLECTIVO, COMPORTAMIENTO_GRUPAL, EVENTO_INSTITUCIONAL, INCIDENTE_GRUPAL, OTRO | OTRO permite descripción de la situación. |
 | `EvidenceMediaType` | image/jpeg, image/png, application/pdf | Enum o CHECK textual equivalente; validación real adicional. |
-| `CurriculumDiscipline` | MATEMATICA_APLICADA, ALGORITMICA | Solo grados BTI 1–3 en Curriculum. |
+| Clasificación curricular | Entidades PlanType, AcademicArea y CurriculumDiscipline | Sustituye el enum anterior. Área NULL indica clasificación incompleta. Las mallas completas V1.0 siguen limitadas a las dos disciplinas aprobadas y niveles BTI 1–3. |
 | `CurriculumSourceKind` | OFICIAL, VALIDADA | Procedencia identificable; validación expresa cuando corresponda. |
 | `CurriculumReadStatus` | EXTRACTED, PREVIEWED, REVIEWED, CONFIRMED | Estados técnicos que prueban la secuencia; corregir tras revisión vuelve a PREVIEWED hasta una nueva revisión. |
 | `ImportFormat` | CSV, XLSX | Contratos delimitados por RF-022. |
@@ -383,7 +426,11 @@ Las PK y restricciones UNIQUE ya generan índices; no se duplican. PostgreSQL no
 | AnecdotalRecord / BehaviorRecord | `(teachingAssignmentId, eventDate)`, `(enrollmentId, eventDate)` | Seguimiento y reportes restringidos. |
 | GroupReport | `(institutionId, eventDate)`, `(courseId, eventDate)`, `(teacherId, eventDate)` | Informes grupales por contexto. |
 | GroupReportStudent | `(enrollmentId)` | Relación opcional con estudiante. |
-| Currículo | FK `curriculumId`, FK de referencias; índices inversos en tablas M:N | Carga de base curricular y procedencia. |
+| AcademicArea / CurriculumDiscipline | Pares únicos `(planTypeId, code)`; CurriculumDiscipline `(academicAreaId, planTypeId)` | Recorrer jerarquía y verificar área/plan. La clave candidata de AcademicArea `(id, planTypeId)` soporta la FK compuesta. |
+| SubjectCurriculumMapping | Único parcial `(subjectId, btiYear) WHERE retiredAt IS NULL`; `(subjectId, btiYear, createdAt)` y `(curriculumDisciplineId)` | Resolver correspondencia vigente y conservar consultas históricas/inversas. |
+| Curriculum | Único `(curriculumDisciplineId, btiYear, version)` | Buscar versiones por disciplina y nivel, sin sustituir automáticamente la versión de planes existentes. |
+| AnnualPlan | `(subjectCurriculumMappingId)`, `(curriculumId)` | Referencias históricas y control de compatibilidad. |
+| Elementos curriculares | FK `curriculumId`, FK de referencias; índices inversos en tablas M:N | Carga de base curricular y procedencia. |
 | DailyPlan | `(annualPlanId, planDate)` | Planificación diaria por fecha. |
 | CurriculumProgressRecord | `(annualPlanItemId, activityDate)`, `(dailyPlanItemId)` | Agregación de horas y correcciones. |
 | ImportBatch / ImportRow | `(requestedById, createdAt)`; `(batchId, classification)` | Vista previa autorizada. |
@@ -472,6 +519,23 @@ erDiagram
 
 ### 13.5. Currículo
 
+Clasificación y correspondencia institucional:
+
+```mermaid
+erDiagram
+    direction TB
+    PlanType ||--o{ AcademicArea : contiene
+    PlanType ||--o{ CurriculumDiscipline : identifica_plan
+    AcademicArea o|--o{ CurriculumDiscipline : clasifica_si_validada
+    Subject ||--o{ SubjectCurriculumMapping : vincula_por_nivel
+    CurriculumDiscipline ||--o{ SubjectCurriculumMapping : referencia
+    CurriculumDiscipline ||--o{ Curriculum : tiene_versiones
+```
+
+El área de una disciplina es opcional; si existe, pertenece al mismo plan. Una correspondencia puede existir sin malla. La única correspondencia vigente por materia y nivel BTI se garantiza mediante la restricción parcial, no mediante la cardinalidad general del diagrama.
+
+Malla versionada y elementos:
+
 ```mermaid
 erDiagram
     direction TB
@@ -497,6 +561,7 @@ erDiagram
     direction TB
     TeachingAssignment ||--o| AnnualPlan : planifica
     Curriculum ||--o{ AnnualPlan : fundamenta
+    SubjectCurriculumMapping ||--o{ AnnualPlan : conserva_correspondencia
     AnnualPlan ||--o{ AnnualPlanItem : contiene
     Capacity ||--o{ AnnualPlanItem : orienta
     AnnualPlan ||--o{ DailyPlan : desarrolla
@@ -534,7 +599,7 @@ erDiagram
 | RF-021; D-06 | Política pública de lista permitida, año activo institucional y rate limiting en backend. |
 | RF-022; D-05 | Lotes/filas de vista previa, clasificación y confirmación de válidas revalidada. |
 | RF-024–RF-025 | Respaldo coordinado de base/archivos, referencias restrictivas y AuditLog. |
-| RF-026–RF-030; D-07 | Currículos/fuentes, lectura revisada, planes anuales/diarios y avance por horas reales. |
+| RF-006, RF-026–RF-030; D-07 | Subject genérico, jerarquía y clasificación parcial, correspondencia por nivel BTI, mallas versionadas/fuentes, lectura revisada, planes con referencia histórica y avance por horas reales. |
 | RF-031–RF-032 | Propuesta IA aislada y aplicación humana explícita con auditoría. |
 | RF-033–RF-034 | Dashboard y perfil como consultas de las mismas fuentes, sin nuevos módulos ni duplicación. |
 | RNF-001–RNF-007 | PostgreSQL/Prisma, sesiones revocables, autorización backend, integridad, IA sin secretos/datos estudiantiles y recuperación. |
@@ -548,7 +613,8 @@ erDiagram
 - **D-04:** exactamente los cuatro estados mínimos y justificación independiente; varias sesiones diarias permitidas.
 - **D-05:** preview antes de persistencia definitiva; inválidas/duplicadas no se importan; informe grupal sin antecedentes individuales; tres evidencias como máximo, 5.000.000 bytes cada una y tipos aprobados.
 - **D-06:** solo año activo y lista permitida; el modelo no trata la cédula como secreto ni expone UUID por consultar. Rate limiting requiere implementación de backend, no se declara resuelto por el esquema.
-- **D-07:** seis combinaciones curriculares aprobadas, referencias documentales, extracción separada de almacenamiento confirmado y avance basado en ejecución explícita.
+- **D-07:** seis combinaciones de mallas completas aprobadas; el catálogo de disciplinas es distinto de las mallas cargadas. Jerarquía con plan obligatorio y área opcional coherente, sin áreas ficticias; correspondencia vigente única por materia/nivel; referencias documentales, extracción separada del almacenamiento confirmado y avance basado en ejecución explícita.
+- **Compatibilidad curricular:** Subject sigue siendo institucional y genérico; puede existir sin correspondencia y esta sin malla. Curriculum sigue versionado; AnnualPlan conserva currículo y correspondencia históricos. AcademicYear y btiYear son conceptos diferentes. Diseño Gráfico puede identificar Plan Optativo y 3.º BTI con área aún desconocida; Dibujo Técnico no exige malla completa. No se agregan RF/RNF ni se amplía el alcance congelado.
 - **Historia:** no hay cascadas destructivas ni reasignación de hechos; escalas y currículos usados se conservan. El historial no concede acceso vigente por sí mismo.
 - **Sin entidades funcionales huérfanas:** cada entidad está vinculada a un RF en la matriz o es soporte técnico directo de una de ellas. Dashboard, perfil y reportes reutilizan datos, sin persistir copias discrepantes.
 - **Límite de revisión:** esta es una validación documental del modelo. Las restricciones SQL, autorización, concurrencia y recuperación todavía deberán probarse durante la implementación; no se afirma que existan migraciones o pruebas ejecutadas.
@@ -579,6 +645,10 @@ Se implementa además **`AuditLog` como entidad transversal obligatoria desde la
 
 `ScopeResource` se implementará cuando se habiliten concesiones por recursos específicos; durante Hito 1 ese tipo de ámbito debe rechazarse, no interpretarse como acceso institucional. Las demás entidades quedan para los hitos que materialicen sus RF. No se necesita matrícula, tarea, escala ni currículo para consultar asignaciones; `TeachingAssignment.gradingScaleId` se incorporará como FK nullable al implementar escalas, sin bloquear este recorrido.
 
+El refinamiento mantiene exactamente estas **16 entidades del Hito 1**: no incorpora como dependencia los cuatro modelos de clasificación/correspondencia ni exige un Curriculum. Subject y TeachingAssignment conservan UUID y relaciones existentes. `Course.btiYear` es una extensión nullable, sin obligatoriedad para el recorrido inicial. Las consultas de materias y asignaciones no deben excluir registros por carecer de correspondencia o malla.
+
+La incorporación posterior del módulo curricular sustituirá el antiguo campo opcional de Subject por correspondencias verificadas y el discriminador de Curriculum por FK, conservando los UUID existentes. Si ya existen datos o planes, se validarán materia, nivel y disciplina antes de completar sus nuevas referencias; no se asignará una referencia antigua a los tres niveles automáticamente. No se generan código Prisma ni migraciones con esta actualización documental.
+
 ### 15.2. Recorrido verificable
 
 | Paso | Persistencia / consulta | Condición de aceptación del diseño |
@@ -597,3 +667,12 @@ La flecha «administrador → institución» significa administración dentro de
 ### 15.3. Verificación mínima del Hito 1
 
 Se debe demostrar el recorrido con un administrador institucional y dos docentes, cada uno con sus asignaciones. La prueba verifica acceso propio, rechazo a asignaciones ajenas, rechazo de terna duplicada/contexto cruzado, revocación de sesión por desactivación y existencia de auditoría administrativa. Una prueba de delegación comprueba que no se concede un permiso o ámbito superior al del concedente. Estos casos validan el modelo mínimo sin exigir implementar tareas, asistencia o planificación antes del hito.
+
+
+### 15.4. Compatibilidad con la navegación aprobada
+
+Se conserva **Inicio → Institución → Curso → Materia → espacio de trabajo de la materia**. El contexto operativo se resuelve sobre TeachingAssignment autorizada; el catálogo curricular compartido no sustituye permisos ni ámbitos.
+
+Dentro de la materia se mantienen Tareas y Evaluaciones, Asistencia, Anecdótico, Conducta, Proceso, Perfiles de Alumnos, Planificación y Currículo. La etiqueta de comportamiento es **Conducta**; “Disciplina curricular” identifica exclusivamente la referencia oficial. Proceso mantiene su función académica aprobada y no se redefine por este refinamiento.
+
+La interfaz diferencia materia sin referencia, referencia sin malla cargada y malla validada disponible. Dibujo Técnico y Diseño Gráfico pueden operar en la gestión académica ordinaria sin malla completa; las funciones dependientes de capacidades curriculares no inventan contenido para suplirla. Estas decisiones no crean tablas de navegación ni alteran el subconjunto del Hito 1.
