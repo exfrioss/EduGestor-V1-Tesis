@@ -265,9 +265,9 @@ La nueva integración PostgreSQL comprueba:
 Las suites de autenticación y persistencia usan ahora sufijos aleatorios en sus claves únicas, por lo que pueden repetirse contra una base persistente sin confundir residuos de fixtures con regresiones. El E2E real fue ejecutado después de reconstruir `api` y `web`; las credenciales se generaron en memoria y no se escribieron en el repositorio.
 
 
-## Plan de pruebas pendiente — API, autorización y UX curricular (25/09/2026)
+## Matriz ejecutada — API, autorización y UX curricular (25/09/2026)
 
-**Estado: previsto, no ejecutado en la actualización documental.** Los resultados anteriores siguen siendo evidencia del refinamiento/Hito 1, no de las rutas futuras. Referencias: API.md sección curricular y DECISIONS.md CUR-API-01. No implementar mallas pedagógicas para satisfacer estas pruebas.
+**Estado: implementación completada.** La cobertura se distribuye entre la integración estructural previa, `curriculum-api.integration.test.ts`, las suites de autorización/académica, RTL y los E2E del Hito 1. Referencias: API.md sección curricular y DECISIONS.md CUR-API-01. No se implementaron mallas pedagógicas para satisfacer pruebas.
 
 | ID local de prueba | Nivel | Caso y resultado verificable |
 |---|---|---|
@@ -301,7 +301,26 @@ Las suites de autenticación y persistencia usan ahora sufijos aleatorios en sus
 | CUR-28 | Regresión Hito 1 | Crear materia/asignación sin correspondencia → login docente → consulta propia 200 y ajena 403; no cambiar UUID históricos ni omitir materias por joins. |
 | CUR-29 | Auditoría | Éxitos/rechazos relevantes tienen actor/contexto/acción/resultado; technicalReason en excepción; sin hashes, cookies, credenciales ni datos ajenos. |
 
-Los identificadores CUR-* organizan pruebas locales; no son RF/RNF nuevos. La protección futura de referencias AnnualPlan/Curriculum se conserva como contrato, pero no se crean esos modelos ni fixtures ficticios para ejecutar este checkpoint. Probar ahora las relaciones históricas realmente implementadas.
+Los identificadores CUR-* organizan pruebas locales; no son RF/RNF nuevos. La protección futura de referencias AnnualPlan/Curriculum se conserva como contrato, pero no se crean esos modelos ni fixtures ficticios.
+
+### Ejecución del checkpoint API/UX curricular
+
+| Verificación ejecutada | Resultado |
+|---|---|
+| `npm run prisma:validate` | Schema válido |
+| `npm run prisma:generate` | Prisma Client 6.12.0 generado |
+| `npm run prisma:migrate:deploy -w @edugestor/api` | 5 migraciones; ninguna pendiente |
+| `npm exec -w @edugestor/api prisma migrate status` | Esquema al día |
+| `RUN_DATABASE_TESTS=1 npm run test -w @edugestor/api` | 13 archivos, 77/77 pruebas aprobadas |
+| `npm test` | Shared 1/1, API ordinaria 13/13, Web RTL 10/10 |
+| `npm run typecheck` | Shared, API y web aprobados |
+| `npm run build` | Shared, API y web aprobados; 104 módulos Vite |
+| `npm run test:e2e` | E2E simulado del Hito 1, 1/1 aprobado |
+| `npm run test:e2e:real` | React → Express → PostgreSQL, 2/2 aprobados: curricular y Hito 1; propio 200/ajeno 403 |
+
+La integración curricular nueva comprueba catálogo de 17 permisos sin concesiones demo, autenticación/CSRF, política técnica con concesión explícita, rechazo del administrador ordinario y de una cuenta técnica sin concesión, prohibición de delegación, lectura contextual, aislamiento institucional, rechazo de `COURSE_SET` para escritura, catálogo paginado, omisión de `curriculumAvailability`, unicidad/concurrencia, sustitución, retiro idempotente, historia y auditoría. La integración estructural conserva las pruebas de área nullable, área/plan incompatible, rangos BTI, materia sin correspondencia e independencia de `TeachingAssignment`.
+
+RTL comprueba además materia sin referencia, ausencia de afirmaciones ficticias sobre malla, referencia vigente, área aún no validada y visibilidad de las acciones autorizadas. El E2E curricular real asocia, sustituye, retira, vuelve a asociar, comprueba `404` entre instituciones y valida la lectura docente por curso; el E2E de regresión conserva el recorrido Hito 1. Ambos se ejecutaron con imágenes reconstruidas y credenciales/fixtures efímeros, sin interceptar API ni persistencia.
 
 ### Pruebas futuras de disponibilidad — diferidas explícitamente
 

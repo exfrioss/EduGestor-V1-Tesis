@@ -64,4 +64,46 @@ describe('frontend Hito 1', () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => { const path = pathOf(input); if (path.endsWith('/auth/session')) return json(session(true)); if (path === '/api/v1/institutions') return json({ institutions: [] }); if (path.endsWith('/me/teaching-assignments')) return json({ teachingAssignments: [] }); return json({}); }));
     render(<App />); expect(await screen.findByText('No tienes asignaciones vigentes')).toBeInTheDocument(); expect(screen.queryByRole('link', { name: 'Administración' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: /crear|editar|desactivar/i })).not.toBeInTheDocument();
   });
+
+  it('muestra una materia sin referencia como válida y no inventa disponibilidad curricular', async () => {
+    window.history.replaceState({}, '', `/admin/institutions/${institutionId}/subjects`);
+    const subject = { id: '44444444-4444-4444-8444-444444444444', institutionId, name: 'Programación', isActive: true, disabledAt: null, rowVersion: 1 };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path.endsWith('/auth/session')) return json(session());
+      if (path === '/api/v1/institutions') return json({ institutions: [institution] });
+      if (path === `/api/v1/institutions/${institutionId}`) return json({ institution });
+      if (path === `/api/v1/subjects?institutionId=${institutionId}`) return json({ subjects: [subject] });
+      if (path.includes('/authorization/check/')) return json({ authorized: true });
+      if (path.includes('/curriculum-mappings')) return json({ data: [], nextCursor: null });
+      if (path.startsWith('/api/v1/curriculum/disciplines')) return json({ data: [], nextCursor: null });
+      return json({});
+    }));
+    render(<App />);
+    expect(await screen.findByText('Sin referencia curricular')).toBeInTheDocument();
+    expect(screen.getByText('La materia puede utilizarse normalmente sin correspondencia.')).toBeInTheDocument();
+    expect(screen.queryByText(/malla validada/i)).not.toBeInTheDocument();
+  });
+
+  it('presenta referencia vigente, área no validada y acciones curriculares autorizadas', async () => {
+    window.history.replaceState({}, '', `/admin/institutions/${institutionId}/subjects`);
+    const subject = { id: '55555555-5555-4555-8555-555555555555', institutionId, name: 'Diseño Gráfico', isActive: true, disabledAt: null, rowVersion: 1 };
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path.endsWith('/auth/session')) return json(session());
+      if (path === '/api/v1/institutions') return json({ institutions: [institution] });
+      if (path === `/api/v1/institutions/${institutionId}`) return json({ institution });
+      if (path === `/api/v1/subjects?institutionId=${institutionId}`) return json({ subjects: [subject] });
+      if (path.includes('/authorization/check/')) return json({ authorized: true });
+      if (path.includes('/curriculum-mappings')) return json({ data: [{ id: '66666666-6666-4666-8666-666666666666', subjectId: subject.id, btiYear: 3, curriculumDisciplineId: '77777777-7777-4777-8777-777777777777', discipline: { officialName: 'Diseño Gráfico', planType: { id: '88888888-8888-4888-8888-888888888888', name: 'Plan Optativo' }, academicArea: null }, retiredAt: null, rowVersion: 1 }], nextCursor: null });
+      if (path.startsWith('/api/v1/curriculum/disciplines')) return json({ data: [], nextCursor: null });
+      return json({});
+    }));
+    render(<App />);
+    expect(await screen.findByText('3.º BTI · Diseño Gráfico')).toBeInTheDocument();
+    expect(screen.getByText(/Área académica aún no validada/)).toBeInTheDocument();
+    expect(screen.getByText('Disponibilidad de malla aún no consultable')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Retirar' })).toBeInTheDocument();
+    expect(screen.getByText('Sustituir')).toBeInTheDocument();
+  });
 });

@@ -40,6 +40,9 @@ export class AuthorizationService {
     permissionCode: PermissionCode,
     resource: ResourceScope,
   ): Promise<boolean> {
+    if (permissionCode === 'curriculum-catalog.manage') {
+      return this.hasEffectiveTechnicalRootGrant(userId, permissionCode);
+    }
     const grant = await this.findGrantForResource(userId, permissionCode, resource);
     return grant !== null;
   }
@@ -59,6 +62,54 @@ export class AuthorizationService {
       }
     }
     return null;
+  }
+
+  async hasEffectiveTechnicalRootGrant(
+    userId: string,
+    permissionCode: PermissionCode,
+  ): Promise<boolean> {
+    const actor = await this.store.user.findUnique({
+      where: { id: userId },
+      select: { accountKind: true, isActive: true },
+    });
+    if (actor?.accountKind !== AccountKind.TECHNICAL || !actor.isActive) return false;
+
+    const candidates = await this.activeCandidates(userId, permissionCode);
+    for (const candidate of candidates) {
+      if (
+        candidate.parentGrantId === null &&
+        candidate.delegatedById === userId &&
+        (await this.isGrantChainEffective(candidate.id, userId, permissionCode))
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async hasEffectiveGrantInInstitution(
+    userId: string,
+    permissionCode: PermissionCode,
+    institutionId: string,
+  ): Promise<boolean> {
+    const candidates = await this.activeCandidates(userId, permissionCode);
+    for (const candidate of candidates) {
+      const scope = scopeFromRecord(candidate.assignment.scope);
+      if (
+        scope.institutionId === institutionId &&
+        scope.kind !== 'RESOURCE_SET' &&
+        (await this.isGrantChainEffective(candidate.id, userId, permissionCode))
+      ) return true;
+    }
+    return false;
+  }
+
+  async hasAnyEffectiveGrant(userId: string, permissionCode: PermissionCode): Promise<boolean> {
+    const candidates = await this.activeCandidates(userId, permissionCode);
+    for (const candidate of candidates) {
+      if (await this.isGrantChainEffective(candidate.id, userId, permissionCode)) return true;
+    }
+    return false;
   }
 
   private async findGrantForResource(

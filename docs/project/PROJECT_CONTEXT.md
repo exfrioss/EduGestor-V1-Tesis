@@ -1,97 +1,65 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT COMPLETADO — Refinamiento estructural curricular
+## CHECKPOINT COMPLETADO — API, autorización y UX curricular
 
 **Fecha:** 25/09/2026.
 
-**Rama:** `feat/curriculum-structure`.
+**Rama:** `feat/curriculum-api-ux`.
 
-**Estado:** estable; sin commit Git.
+**Estado:** estable, validado y sin commit Git.
 
-### Implementado
+### Alcance implementado
 
-- Prisma incorpora `PlanType`, `AcademicArea`, `CurriculumDiscipline` y `SubjectCurriculumMapping` conforme a `DATABASE.md`.
-- `Course.btiYear` es `SmallInt` nullable y PostgreSQL limita sus valores a `1..3` cuando existe.
-- `CurriculumDiscipline.planTypeId` es obligatorio; `academicAreaId` es nullable y una FK compuesta impide usar un área de otro plan.
-- `SubjectCurriculumMapping.btiYear` se limita a `1..3`; un índice único parcial permite una sola correspondencia vigente por `(subjectId, btiYear)` y conserva filas retiradas mediante `retiredAt`.
-- Todas las relaciones nuevas usan UUID, `ON DELETE RESTRICT`, timestamps, `rowVersion` e índices aprobados.
-- `Subject` continúa siendo institucional y genérico. Se retiró el enum antiguo y ninguna materia recibió correspondencias automáticas.
-- `TeachingAssignment` conserva sus relaciones y puede crearse/consultarse aunque la materia no tenga correspondencia curricular.
-- La API de cursos acepta y devuelve `btiYear`; la API de materias ya no acepta ni devuelve el campo enum `curriculumDiscipline`.
-- El frontend eliminó el selector curricular antiguo sin añadir navegación ni simular catálogos.
+- El catálogo técnico pasó de 13 a 17 permisos con `curriculum-catalog.read/manage` y `subject-curriculum-mapping.read/manage`.
+- La sincronización continúa siendo idempotente. El bootstrap demo conserva una lista explícita de los 13 permisos del Hito 1 y no concede los cuatro nuevos.
+- Se añadieron las 13 rutas aprobadas en `API.md`: tres lecturas del catálogo compartido, seis escrituras técnicas excepcionales y cuatro operaciones de correspondencias.
+- El catálogo se pagina mediante cursor opaco ligado a filtros/contexto. Las respuestas no incluyen relaciones inversas institucionales ni `curriculumAvailability`.
+- `curriculum-catalog.manage` exige simultáneamente cuenta `TECHNICAL`, concesión raíz explícita vigente, `technicalReason`, sesión, CSRF y auditoría. `accountKind` por sí solo no autoriza. La concesión no puede delegarse por `/authorization/grants`.
+- La lectura del catálogo se reautoriza por institución; para docentes exige además vínculo y asignación operativa vigentes.
+- Las correspondencias resuelven `Subject` y su institución en servidor. La escritura exige scope institucional completo; `COURSE_SET` solo puede leer en el curso/nivel autorizado y nunca modificar la referencia compartida.
+- Crear, retirar y sustituir usa transacciones serializables, `rowVersion`, auditoría y el índice parcial existente. Sustituir retira y crea atómicamente; nunca modifica ni elimina el UUID histórico.
+- La UI de Materias incorpora “Referencia curricular” opcional, estados vacío/carga/error, alta, retiro confirmado y sustitución. Un área nula se presenta como “Área académica aún no validada” y una referencia vigente como “Disponibilidad de malla aún no consultable”.
+- Cursos permite capturar/editar `btiYear` nullable. `Subject` continúa genérico y `TeachingAssignment` no depende de una correspondencia.
 
-### Migración creada
+### Persistencia y migraciones
+
+No se creó una migración nueva en este checkpoint. Se reutiliza la migración versionada ya aprobada:
 
 `20260925120000_curriculum_structure_refinement`
 
-La migración es aditiva para los cuatro catálogos/relaciones y `Course.btiYear`. Antes de retirar el enum anterior, conserva cada valor no nulo en un `AuditLog` de proceso; no lo convierte en correspondencia porque carece del año BTI requerido.
+`prisma migrate deploy` informó que no había migraciones pendientes y `prisma migrate status` confirmó las 5 migraciones aplicadas. La restricción final sigue siendo el índice único parcial PostgreSQL sobre `(subjectId, btiYear) WHERE retiredAt IS NULL`.
 
-Validación de datos existentes:
-
-- antes: 2 materias, 2 cursos, 3 asignaciones y 2 referencias enum;
-- después: los mismos conteos y UUID de materias, cursos y asignaciones;
-- las 2 referencias antiguas quedaron registradas como evidencia de migración;
-- `prisma migrate status`: 5 migraciones, esquema al día.
-
-Validación desde vacío:
-
-- esquema PostgreSQL temporal limpio;
-- 5/5 migraciones aplicadas;
-- 21 tablas creadas;
-- esquema temporal eliminado después de comprobarlo.
-
-### Pruebas ejecutadas
+### Validación ejecutada
 
 - `prisma validate`: aprobado.
-- `prisma generate`: aprobado.
-- Integración PostgreSQL completa: 12 archivos, 68/68 pruebas aprobadas.
-- Casos curriculares: materia sin correspondencia; Algorítmica en 1.º/2.º/3.º; Matemática Aplicada a la Informática; Diseño Gráfico de 3.º en Plan Optativo sin área; rechazo de área de otro plan; unicidad vigente; retiro/reemplazo histórico; rangos BTI; independencia de `TeachingAssignment`.
-- `typecheck`: shared, API y web aprobados.
-- `build`: shared, API y web aprobados; Vite transformó 104 módulos.
-- Suite ordinaria: shared 1/1, API 13/13 y web 8/8; las pruebas PostgreSQL se omiten por diseño sin `RUN_DATABASE_TESTS=1`.
-- E2E simulado del Hito 1: 1/1 aprobado.
-- E2E real React → Express → PostgreSQL: 1/1 aprobado después de reconstruir/reiniciar los contenedores; acceso propio `200` y ajeno `403`.
+- `prisma generate`: Prisma Client 6.12.0 generado.
+- `prisma migrate deploy`: 5 migraciones, ninguna pendiente.
+- `prisma migrate status`: esquema al día.
+- `RUN_DATABASE_TESTS=1 npm run test -w @edugestor/api`: 13 archivos, 77/77 pruebas aprobadas.
+- Suite ordinaria `npm test`: shared 1/1, API 13/13 con 64 pruebas DB omitidas por diseño, web 10/10.
+- `npm run typecheck`: shared, API y web aprobados.
+- `npm run build`: shared, API y web aprobados; Vite transformó 104 módulos.
+- `npm run test:e2e`: recorrido simulado del Hito 1 1/1 aprobado.
+- `npm run test:e2e:real`: 2/2 aprobados contra React → Express → PostgreSQL: regresión Hito 1 (lectura propia `200`, ajena `403`) y recorrido curricular de asociación/sustitución/retiro, aislamiento `404` y lectura docente contextual.
 
-### Incidencias corregidas
+### Incidencias encontradas y corregidas
 
-- El bootstrap demo no era idempotente si una base persistente ya tenía la concesión raíz creada por otra cuenta técnica. Ahora conserva `grantedById`/`delegatedById` históricos en vez de reatribuir procedencia.
-- Dos suites PostgreSQL usaban logins fijos y colisionaban al repetirse sobre una base persistente. Los fixtures ahora generan sufijos únicos.
-- El E2E simulado todavía buscaba el selector curricular retirado; se actualizó al contrato genérico de `Subject`.
-- El E2E real asumía una única celda por docente/institución. Se hicieron deterministas sus selectores para convivir con historia persistida sin relajar la comprobación de aislamiento.
+- Expandir directamente `PERMISSION_CATALOG` habría otorgado los cuatro permisos nuevos al dataset demo. Se separó `HITO1_PERMISSION_CODES` y el demo conserva exactamente sus 13 concesiones previas.
+- El comprobador genérico habría mostrado `curriculum-catalog.manage` como válido para una cuenta ordinaria con ese código. Ahora aplica la política técnica excepcional también al endpoint de comprobación.
+- El primer E2E real no arrancó porque `.env` mantiene correctamente vacías las credenciales demo. Se provisionaron credenciales ficticias solo en memoria mediante el CLI y la repetición aprobó.
+- Los curso existentes sin nivel BTI continúan válidos; la UI permite dejar `btiYear` vacío y la API de lectura contextual rechaza expresamente usar ese curso para inferir todos los niveles.
 
 ### Límites vigentes
 
-- No existe API, pantalla ni bootstrap para administrar catálogos o correspondencias curriculares.
-- No se crearon áreas ficticias ni datos curriculares de demostración.
-- No se implementaron capacidades, contenidos, indicadores, plan anual, plan diario ni IA.
-- Las correspondencias se validan por restricciones PostgreSQL y pruebas de integración; su caso de uso de administración queda pendiente de un checkpoint aprobado.
+- No existe pantalla cotidiana para administrar el catálogo compartido; sus seis escrituras son API técnica excepcional.
+- No se crean datos curriculares ficticios ni se conceden permisos curriculares al dataset demo.
+- `curriculumAvailability` permanece omitido hasta que exista una fuente real de mallas validadas.
+- No se implementaron `Curriculum`, competencias/capacidades, contenidos, indicadores, carga de mallas, planificación, avance curricular ni IA.
+- `RESOURCE_SET` continúa fuera de alcance.
 - No se modificaron `REQUIREMENTS.md`, `DATABASE.md`, `PROJECT_MASTER.md` ni `legacy/`.
 
 ### Siguiente checkpoint exacto
 
-**Etapa de definición y aprobación completada en la actualización documental siguiente. El próximo checkpoint pasa a implementación API/UX, con el alcance exacto indicado al final de este documento.**
+**Definir y aprobar el contrato del módulo Curriculum/mallas antes de implementar capacidades, contenidos, indicadores o disponibilidad validada.**
 
-
-## CHECKPOINT DOCUMENTAL APROBADO — API, autorización y UX curricular
-
-**Fecha:** 25/09/2026. **Estado:** especificación aprobada y documentada; implementación pendiente. La evidencia de implementación/pruebas del refinamiento estructural anterior se conserva y no representa ejecución de las nuevas APIs.
-
-- Convención verificada en permission-catalog.ts y bootstrap-authorization-catalog.ts: recurso.acción, singular, minúsculas/kebab-case.
-- Códigos aprobados: `curriculum-catalog.read`, `curriculum-catalog.manage`, `subject-curriculum-mapping.read`, `subject-curriculum-mapping.manage`. Hoy el código adjunto conserva 13 permisos; incorporar los cuatro será trabajo de implementación.
-- Catálogo compartido: lectura contextual y escritura técnica excepcional explícita/auditada. No conceder administración compartida a administradores institucionales ni crear scope global. Revisar bootstrap/provisionadores para evitar otorgar automáticamente los nuevos permisos.
-- Correspondencias: lectura por ámbito; creación/retiro/sustitución institucional con unicidad vigente, rowVersion, transacción y auditoría. RESOURCE_SET permanece no soportado.
-- API.md define solicitudes/respuestas/errores y mantiene error.requestId y los errores existentes de sesión/CSRF/permisos. DECISIONS.md registra CUR-API-01; TESTS.md separa casos pendientes de evidencia previa.
-- curriculumAvailability permanece futuro y se omite ahora. La UI no afirma disponibilidad ni ausencia de malla sin poder consultarla. No se requiere implementar Curriculum, capacidades, contenidos, indicadores, planificación o IA.
-- UX: Inicio → Institución → Curso → Materia → espacio de trabajo; referencia opcional en Materias, área desconocida permitida y etiqueta Conducta para comportamiento.
-- Hito 1 conserva 16 entidades, materias/asignaciones sin correspondencia y aislamiento docente/institucional.
-
-### Siguiente checkpoint exacto para Codex — Implementar API y UX de referencias curriculares
-
-1. Leer REQUIREMENTS.md revisión 4, DATABASE.md aprobado, API.md sección curricular, CUR-API-01 de DECISIONS.md y la matriz pendiente en TESTS.md. Respetar las instrucciones del repositorio.
-2. Revisar el código actual de autorización técnica, bootstrap de catálogo y provisionadores demo; reutilizar las cuatro entidades ya implementadas. No rehacer su migración ni añadir un scope nuevo. Mantener los archivos normativos intactos.
-3. Añadir exactamente los cuatro permisos a la convención existente y su sincronización idempotente, sin concesión automática ni vía de delegación institucional del permiso compartido.
-4. Implementar lecturas del catálogo y correspondencias, después creación/retiro/sustitución y escrituras técnicas excepcionales. Reutilizar sesión/CSRF/errores/auditoría; resolver ámbito en servidor y proteger concurrencia.
-5. Adaptar Materias para referencia opcional y acciones según permiso. No generar catálogos ficticios productivos. Omitir curriculumAvailability; mostrar su limitación sin consultar modelos futuros ni bloquear Hito 1.
-6. Ejecutar los casos de TESTS.md para este checkpoint y la regresión del Hito 1. Registrar comandos, resultados reales y limitaciones; no reemplazar evidencia histórica ni declarar casos futuros como aprobados.
-
-**Criterio de salida:** rutas y UX contractuales implementadas; pruebas HTTP/PostgreSQL, permisos/concurrencia y recorrido real aprobadas; materia sin correspondencia sigue operativa; ningún dato curricular inventado; sin ampliación hacia mallas, planificación o IA. Si el mecanismo de autorización técnica necesita una decisión no cubierta, documentar el punto y mantener esas escrituras denegadas, sin introducir privilegios globales por defecto.
+La siguiente tarea debe comenzar leyendo los documentos normativos y decidir la fuente/versionado de mallas, su relación exacta con `CurriculumDiscipline` + `btiYear`, permisos, auditoría y estados de disponibilidad. No inferir datos ni ampliar el dominio antes de esa aprobación.

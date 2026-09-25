@@ -308,6 +308,20 @@ PostgreSQL aplica dos restricciones que Prisma no puede expresar completamente: 
 
 El enum anterior de `Subject` no contenía año BTI. La migración registra sus valores no nulos en `AuditLog` y luego retira la columna/tipo, sin fabricar correspondencias ambiguas. `Subject` y `TeachingAssignment` no hacen `JOIN` obligatorio con las nuevas tablas.
 
-No hay router, controlador, servicio ni frontend de administración curricular en este checkpoint. Las filas usadas por las pruebas se crean directamente con Prisma contra una base desechable. Añadir esa API requiere antes aprobar permisos, contratos y reglas de auditoría.
+## API, autorización y UX de referencias curriculares
 
-El formulario de materias muestra únicamente el nombre institucional. El selector “Disciplina curricular” fue retirado porque representaba el enum sustituido; no se reemplazó con opciones sintéticas.
+El módulo `apps/api/src/modules/curriculum` implementa controller → service → Prisma para las 13 rutas aprobadas. Los esquemas Zod son estrictos; la paginación usa un cursor opaco ligado criptográficamente al conjunto de filtros y contexto, orden estable por UUID y reautorización en cada página. Todas las respuestas privadas usan la sesión opaca y `Cache-Control: no-store`; las mutaciones requieren CSRF.
+
+`curriculum-catalog.manage` es una excepción técnica, no un permiso institucional ordinario. Para autorizarlo se comprueba cuenta `TECHNICAL` activa, una concesión raíz explícita y efectiva cuyo actor/delegante es la propia cuenta técnica, motivo no vacío, sesión y CSRF. El mismo criterio se aplica a `/authorization/check`; `/authorization/grants` rechaza expresamente delegar este código. Éxitos y rechazos se auditan sin cookies, hashes ni credenciales.
+
+La lectura del catálogo acepta `institutionId` exclusivamente como contexto de autorización; el catálogo no adquiere propiedad institucional ni expone relaciones inversas. Una cuenta docente necesita además perfil, vínculo institucional y asignación operativa vigentes. `RESOURCE_SET` sigue rechazado.
+
+Para correspondencias, el servicio busca `Subject` y compara su institución real con la ruta antes de autorizar. La escritura exige una concesión institucional efectiva de `subject-curriculum-mapping.manage`; un `COURSE_SET` nunca escribe. La lectura limitada a curso valida institución, `Course.btiYear`, uso de la materia en una asignación vigente y, para docentes, que la asignación sea propia.
+
+Crear, retirar y sustituir se ejecuta con aislamiento serializable y hasta tres reintentos de `P2034`. El agotamiento se traduce a `CONCURRENT_MODIFICATION`. La sustitución actualiza la fila anterior y crea la nueva dentro de la misma transacción junto con auditoría; un error revierte todo. El índice único parcial existente sigue siendo la garantía final. El retiro repetido con la versión actual no crea otro evento.
+
+El bootstrap de permisos sincroniza los 17 códigos. `bootstrap:hito1-demo` usa `HITO1_PERMISSION_CODES`, lista explícita de los 13 permisos originales, por lo que ejecutar el sincronizador no amplía capacidades del administrador ficticio.
+
+El frontend mantiene Materias como catálogo genérico y añade la referencia en un panel secundario protegido por `PermissionGate`. Usa exclusivamente las APIs reales; no almacena permisos complejos ni tokens. La ausencia de correspondencia no bloquea la materia. `curriculumAvailability` se omite y se informa “Disponibilidad de malla aún no consultable”; no se consulta ni simula un modelo `Curriculum`.
+
+`playwright.real.config.ts` ejecuta dos escenarios sin mocks: la regresión completa del Hito 1 y `curriculum-real.spec.ts`. El segundo crea fixtures curriculares únicos directamente en PostgreSQL para la prueba, usa la UI real para asociar/sustituir/retirar, comprueba aislamiento institucional `404` y vuelve a iniciar sesión como docente para leer por su curso autorizado. Requiere `DATABASE_URL` en el entorno del runner; las credenciales se generan en memoria y no se guardan.

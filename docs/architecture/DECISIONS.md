@@ -2,11 +2,11 @@
 
 ## CUR-API-01 — Administración curricular y correspondencias
 
-**Estado:** aprobado para implementación. **Fecha:** 25/09/2026. **Tipo:** precisión técnica del alcance V1.0, sin RF/RNF nuevos. No renumera ni reabre D-01 a D-07. Fuente normativa: REQUIREMENTS.md revisión 4 y DATABASE.md actualizado. Contratos completos: [API.md](API.md), sección “Contratos aprobados — Administración curricular”.
+**Estado:** implementado y validado. **Fecha:** 25/09/2026. **Tipo:** precisión técnica del alcance V1.0, sin RF/RNF nuevos. No renumera ni reabre D-01 a D-07. Fuente normativa: REQUIREMENTS.md revisión 4 y DATABASE.md actualizado. Contratos completos: [API.md](API.md), sección “Contratos aprobados — Administración curricular”.
 
 ### Decisión de permisos
 
-El catálogo real adjunto contiene 13 códigos recurso.acción, en singular y kebab-case donde corresponde. Se adoptan exactamente:
+El catálogo conserva los 13 códigos originales y añade estos cuatro códigos recurso.acción, en singular y kebab-case:
 
 | Código | Semántica |
 |---|---|
@@ -15,13 +15,13 @@ El catálogo real adjunto contiene 13 códigos recurso.acción, en singular y ke
 | subject-curriculum-mapping.read | Leer correspondencias dentro del ámbito institucional/curso permitido. |
 | subject-curriculum-mapping.manage | Crear, retirar y sustituir correspondencias institucionales autorizadas. |
 
-Los códigos aún no fueron añadidos al TypeScript por este checkpoint documental. El bootstrap sincroniza códigos/descripciones; no autoriza concesiones automáticas. No usar el plural subject-curriculum-mappings para permisos (las rutas REST sí son plurales). manage no implica read; subject.manage no implica administración curricular.
+Los códigos están implementados en TypeScript y el bootstrap sincroniza 17 códigos/descripciones sin autorizar concesiones automáticas. El dataset demo usa una lista explícita de los 13 permisos anteriores. No usar el plural subject-curriculum-mappings para permisos (las rutas REST sí son plurales). manage no implica read; subject.manage no implica administración curricular.
 
 ### Catálogo compartido y límites de autorización
 
 AccessScope pertenece a una institución. Ninguna concesión institucional autoriza una escritura global. La administración compartida requiere TECHNICAL, autorización explícita de acción excepcional, technicalReason, sesión, CSRF y auditoría. No se crea GLOBAL ni institución artificial; tampoco se permite delegar curriculum-catalog.manage por /authorization/grants ordinario. El código de permiso no sustituye la política técnica.
 
-La implementación revisará el mecanismo excepcional real y sus provisionadores antes de habilitar escrituras: el adjunto no contiene ese servicio, por lo que no se afirma que ya soporte esta nueva acción. No conceder el nuevo permiso al administrador cotidiano mediante bootstrap demo o expansión de “todos los permisos”. Si no puede comprobarse la autorización excepcional, la escritura se deniega.
+La implementación exige una concesión raíz explícita del permiso a la propia cuenta técnica, activa y con cadena efectiva. Una cuenta `TECHNICAL` sin esa concesión y un administrador ordinario al que se hubiese asignado el código son rechazados. El endpoint genérico de comprobación aplica la misma política y la delegación ordinaria rechaza el permiso.
 
 RESOURCE_SET permanece no soportado. La escritura de correspondencias exige scope institucional completo; una concesión de curso permite solo lectura contextual autorizada. No puede alterar una correspondencia compartida por otras secciones/años. La futura autorización por Subject explícito del modelo no se implementa incidentalmente aquí.
 
@@ -43,4 +43,4 @@ Se conserva Inicio → Institución → Curso → Materia → espacio de trabajo
 
 ### Consecuencias y verificación
 
-Hito 1 mantiene sus 16 entidades y recorrido, sin nuevas dependencias obligatorias. La estructura curricular ya implementada se reutiliza; no se repite la migración. Este cambio documental no modifica REQUIREMENTS.md, DATABASE.md, PROJECT_MASTER.md, código ni migraciones. Las pruebas futuras se detallan en [TESTS.md](../tests/TESTS.md); no se registran como ejecutadas.
+Hito 1 mantiene sus 16 entidades y recorrido, sin nuevas dependencias obligatorias. La estructura curricular ya implementada se reutiliza y no se repite la migración. La implementación no modificó REQUIREMENTS.md, DATABASE.md ni PROJECT_MASTER.md. La evidencia ejecutada se registra en [TESTS.md](../tests/TESTS.md).

@@ -64,6 +64,35 @@ export interface Subject {
   rowVersion: number;
 }
 
+export interface CurriculumDisciplineReference {
+  id: string;
+  planTypeId: string;
+  academicAreaId: string | null;
+  code: string;
+  officialName: string;
+  classificationStatus: 'INCOMPLETE' | 'COMPLETE';
+  rowVersion: number;
+}
+
+export interface SubjectCurriculumMapping {
+  id: string;
+  subjectId: string;
+  btiYear: number;
+  curriculumDisciplineId: string;
+  discipline: {
+    officialName: string;
+    planType: { id: string; name: string };
+    academicArea: { id: string; name: string } | null;
+  };
+  retiredAt: string | null;
+  rowVersion: number;
+}
+
+export interface CursorPage<T> {
+  data: T[];
+  nextCursor: string | null;
+}
+
 export interface TeachingAssignment {
   id: string;
   teacherId: string;

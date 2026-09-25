@@ -12,6 +12,35 @@ export const PERMISSION_CATALOG = [
   { code: 'administration.delegate', description: 'Delegar permisos administrativos' },
   { code: 'administration.revoke', description: 'Revocar concesiones administrativas' },
   { code: 'audit.read', description: 'Consultar auditoría' },
+  { code: 'curriculum-catalog.read', description: 'Consultar el catálogo curricular compartido' },
+  {
+    code: 'curriculum-catalog.manage',
+    description: 'Administrar excepcionalmente el catálogo curricular compartido',
+  },
+  {
+    code: 'subject-curriculum-mapping.read',
+    description: 'Consultar correspondencias curriculares institucionales',
+  },
+  {
+    code: 'subject-curriculum-mapping.manage',
+    description: 'Administrar correspondencias curriculares institucionales',
+  },
+] as const;
+
+export const HITO1_PERMISSION_CODES = [
+  'institution.read',
+  'institution.manage',
+  'teacher.read',
+  'teacher.manage',
+  'course.read',
+  'course.manage',
+  'subject.read',
+  'subject.manage',
+  'teaching-assignment.read',
+  'teaching-assignment.manage',
+  'administration.delegate',
+  'administration.revoke',
+  'audit.read',
 ] as const;
 
 export type PermissionCode = (typeof PERMISSION_CATALOG)[number]['code'];

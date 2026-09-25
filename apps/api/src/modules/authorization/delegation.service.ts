@@ -46,6 +46,11 @@ export class DelegationService {
           if (uniquePermissions.length === 0) {
             throw new AppError(400, 'VALIDATION_ERROR', 'Debe indicarse al menos un permiso');
           }
+          if (uniquePermissions.includes('curriculum-catalog.manage')) {
+            throw denied(
+              'La administración del catálogo curricular no puede delegarse por concesiones ordinarias',
+            );
+          }
 
           const [targetUser, role, permissions] = await Promise.all([
             transaction.user.findUnique({

@@ -145,7 +145,7 @@ Requiere protección CSRF y `administration.revoke` dentro de un ámbito que con
 
 ### Catálogo de permisos
 
-El catálogo del checkpoint contiene 13 códigos: lectura/administración de instituciones, docentes, cursos, materias y `TeachingAssignment`; delegación; revocación; y lectura de auditoría. Se sincroniza idempotentemente con:
+El catálogo contiene 17 códigos: los 13 permisos del Hito 1 más los cuatro permisos curriculares documentados en esta sección. Se sincroniza idempotentemente con:
 
 ```bash
 npm run bootstrap:authorization-catalog -w @edugestor/api
@@ -280,7 +280,7 @@ Se verificó `permission-catalog.ts`: utiliza recurso singular y acción, en min
 | `subject-curriculum-mapping.read` | Consultar correspondencias institucionales vigentes/históricas dentro del ámbito autorizado. | Institución o contexto de curso/asignación autorizado. |
 | `subject-curriculum-mapping.manage` | Crear, retirar y sustituir correspondencias. | Permiso efectivo sobre la institución completa de Subject en este checkpoint. |
 
-Los 13 códigos existentes permanecen intactos; los cuatro nuevos se incorporarán durante implementación (17 códigos si el catálogo no recibió otros cambios). No se crean alias plurales `subject-curriculum-mappings.*`. `manage` no implica `read`; `subject.manage` no implica permisos curriculares. La sincronización idempotente del catálogo no debe conceder automáticamente los nuevos permisos a administradores ni al dataset demo.
+Los 13 códigos existentes permanecen intactos y los cuatro nuevos completan un catálogo de 17. No existen alias plurales `subject-curriculum-mappings.*`. `manage` no implica `read`; `subject.manage` no implica permisos curriculares. La sincronización idempotente no concede automáticamente los nuevos permisos a administradores ni al dataset demo.
 
 El AccessScope aprobado es institucional; no se inventa GLOBAL ni una institución ficticia. La administración técnica compartida exige una comprobación explícita de la acción permitida por la política técnica excepcional, además de TECHNICAL, sesión, CSRF y `technicalReason`. La mera existencia del código en Permission o una concesión institucional no autoriza esa operación. Este permiso no se delega por la vía institucional ordinaria, ni siquiera mediante envío directo a `/authorization/grants`. Codex debe revisar el mecanismo técnico existente y aplicar denegación por defecto; no se presupone que los dos archivos de catálogo adjuntos implementen ya esa autorización.
 
