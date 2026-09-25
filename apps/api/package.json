@@ -11,6 +11,7 @@
     "typecheck": "tsc -b --pretty false --force",
     "test": "vitest run",
     "bootstrap:root": "tsc -b --pretty false --force && node dist/commands/bootstrap-root.js",
+    "bootstrap:authorization-catalog": "tsc -b --pretty false --force && node dist/commands/bootstrap-authorization-catalog.js",
     "prisma:generate": "prisma generate",
     "prisma:validate": "prisma validate",
     "prisma:migrate:deploy": "prisma migrate deploy"

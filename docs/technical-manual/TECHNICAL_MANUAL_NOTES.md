@@ -103,3 +103,41 @@ npm run test -w @edugestor/api
 ```
 
 La suite crea cuentas y auditoría append-only; por diseño no intenta limpiar esos registros al finalizar. No debe apuntarse a una base con datos reales.
+
+## Autorización jerárquica
+
+El motor vive en `apps/api/src/modules/authorization`. `AuthorizationService` busca concesiones activas del usuario para un permiso concreto y evalúa cada concesión de forma independiente. Esto impide combinar el permiso de un rol con el scope de otro. La decisión es negativa si no existe una concesión completa y vigente.
+
+La cadena de delegación se recorre por `parentGrantId` hasta una raíz. Cada tramo exige el mismo permiso, que el padre pertenezca al delegante, que el scope padre contenga al hijo y que permisos, asignaciones y usuarios sigan activos. La raíz debe proceder de una cuenta `TECHNICAL` activa. La revocación o inactividad de cualquier ancestro invalida todos los descendientes.
+
+`INSTITUTION` contiene todos los recursos de una institución. `COURSE_SET` contiene únicamente los cursos listados y recursos que resuelven a esos cursos. Un conjunto de cursos solo contiene a otro si es superconjunto dentro de la misma institución. `RESOURCE_SET` se rechaza expresamente y no debe habilitarse hasta un checkpoint normativo posterior.
+
+La migración `20260925010000_authorization_invariants` agrega funciones y triggers para la contención de ámbitos, raíces técnicas, procedencia inmutable, conjuntos de cursos inmutables una vez concedidos y contexto inmutable de la asignación. La migración `20260925011000_allow_permission_revocation` permite actualizar el estado de revocación sin permitir alterar la procedencia.
+
+### Catálogo técnico
+
+Sincronizar el catálogo después de aplicar migraciones:
+
+```bash
+npm run bootstrap:authorization-catalog -w @edugestor/api
+```
+
+El comando es idempotente y no asigna permisos ni crea concesiones raíz. Estas últimas siguen siendo una operación técnica excepcional, auditada y fuera de la API ordinaria.
+
+### Delegación y revocación
+
+Las operaciones mutables requieren cookie de sesión y doble envío CSRF. `DelegationService` usa transacciones serializables, valida el permiso administrativo y busca un padre efectivo para cada permiso delegado. El éxito se audita en la misma transacción; un rechazo controlado se audita fuera de la transacción revertida.
+
+Al revocar se recorren las relaciones padre-hijo, se revocan los permisos descendientes y se revoca cada asignación descendiente que ya no conserva permisos activos. `AuditLog` registra actor, resultado, ámbito y códigos de permiso, pero nunca contraseña, hash, cookie o token.
+
+### Pruebas PostgreSQL de autorización
+
+Usar una base desechable vacía, aplicar todas las migraciones y ejecutar:
+
+```powershell
+$env:DATABASE_URL='postgresql://usuario:clave@localhost:5432/base_autorizacion_desechable?schema=public'
+$env:RUN_DATABASE_TESTS='1'
+npm run test -w @edugestor/api
+```
+
+La suite no limpia `AuditLog`, que es append-only; nunca debe apuntarse a datos reales.

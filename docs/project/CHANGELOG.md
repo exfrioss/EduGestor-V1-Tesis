@@ -1,5 +1,17 @@
 # Changelog
 
+## 25/09/2026 — Motor de autorización jerárquica del Hito 1
+
+- Se implementó autorización con denegación por defecto, permisos explícitos y ámbitos `INSTITUTION`/`COURSE_SET`, sin combinar permiso y scope de concesiones diferentes.
+- Se añadió validación completa de la cadena `parentGrantId`, raíces técnicas, revocación efectiva, múltiples roles sin escalamiento implícito e inmutabilidad de procedencia.
+- Se incorporaron `requirePermission`, resolución del ámbito real del recurso y aislamiento de `TeachingAssignment` por docente.
+- Se implementó delegación D-01 con control de subconjunto de permisos, contención de ámbito, rechazo de autodelegación/ciclos y revocación de descendientes.
+- Se agregó un catálogo idempotente de 13 permisos del Hito 1 y el comando `bootstrap:authorization-catalog`.
+- Se añadieron las rutas mínimas de comprobación, concesión y revocación bajo `/api/v1/authorization`, con sesión, CSRF y auditoría sin secretos.
+- Se crearon las migraciones `20260925010000_authorization_invariants` y `20260925011000_allow_permission_revocation` para restricciones no representables por Prisma.
+- Se agregaron 16 pruebas de integración de autorización; la suite completa sobre PostgreSQL real aprobó 36/36 pruebas.
+- No se implementaron CRUD administrativos, pantallas, `RESOURCE_SET` ni módulos posteriores al Hito 1.
+
 ## 24/09/2026 — Autenticación y sesiones del Hito 1
 
 - Se añadieron login, logout, consulta de sesión y entrega de token CSRF bajo `/api/v1/auth`.

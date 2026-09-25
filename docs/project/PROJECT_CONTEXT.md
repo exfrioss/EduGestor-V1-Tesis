@@ -1,46 +1,57 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT COMPLETADO — Autenticación y sesiones del Hito 1
+## CHECKPOINT COMPLETADO — Motor de autorización jerárquica del Hito 1
 
-**Fecha:** 24/09/2026.
+**Fecha:** 25/09/2026.
+
 **Estado:** estable; sin commit Git.
 
 ### Implementado
 
-- Hashing y verificación de contraseñas con `scrypt`, sal aleatoria, parámetros documentados y comparación en tiempo constante.
-- `POST /api/v1/auth/login`, `POST /api/v1/auth/logout`, `GET /api/v1/auth/session` y `GET /api/v1/auth/csrf`.
-- Sesiones opacas de 256 bits en `AuthSession`; PostgreSQL conserva exclusivamente el hash SHA-256 del token.
-- Cookie de sesión HttpOnly, `SameSite=Lax`, `Secure` en producción, sin `localStorage`/`sessionStorage` y con expiración absoluta configurable de 8 horas por defecto.
-- Revocación en logout, rechazo de sesiones expiradas/revocadas y actualización limitada de `lastSeenAt` sin extender `expiresAt`.
-- Middleware exportado `requireAuthenticated` y respuesta uniforme para usuario inexistente, contraseña incorrecta, `User` inactivo o `Teacher` inactivo.
-- Protección CSRF por doble envío para operaciones mutables autenticadas. El token CSRF no es credencial de sesión y la sesión nunca se entrega en JSON.
-- Rate limiting de login por IP, configurable; los éxitos no consumen el límite definitivo.
-- Auditoría de login exitoso, login denegado, limitación y logout, sin contraseñas, hashes, cookies ni tokens de sesión.
-- Triggers PostgreSQL que revocan todas las sesiones al desactivar `User` o `Teacher`, además de la comprobación defensiva en cada autenticación.
-- Respuestas de autenticación con `Cache-Control: no-store` y logging con redacción de secretos.
+- Denegación por defecto y evaluación de permisos explícitos mediante una única concesión vigente; un permiso y un ámbito de concesiones distintas nunca se combinan.
+- Ámbitos `INSTITUTION` y `COURSE_SET`, con contención institucional y por subconjunto de cursos. `RESOURCE_SET` se rechaza explícitamente en servicio, API y PostgreSQL.
+- Evaluación completa de `parentGrantId`: permiso coincidente, delegante correcto, ámbito igual o menor, usuarios y asignaciones activos, ausencia de revocación y raíz creada por cuenta técnica activa.
+- Middleware exportado `requirePermission` y resolución del ámbito real de institución, vínculo docente-institución, curso, materia y `TeachingAssignment` desde PostgreSQL.
+- Delegación D-01 con rechazo de autoasignación, permiso o ámbito superior, destino inválido y procedencia mutable.
+- Revocación transaccional de la concesión y sus permisos descendientes; una asignación descendiente queda revocada cuando pierde todos sus permisos activos.
+- Invariantes SQL para contención, raíces técnicas, cadena sin ciclos, inmutabilidad de procedencia, inmutabilidad de ámbitos usados y contexto inmutable de asignaciones con permisos.
+- Catálogo idempotente de 13 permisos técnicos, limitado a instituciones, docentes, cursos, materias, asignaciones docentes, delegación/revocación y auditoría.
+- Servicio y ruta de comprobación que permiten al docente acceder únicamente a sus `TeachingAssignment` vigentes.
+- API mínima bajo `/api/v1/authorization` para comprobar permisos, comprobar asignación docente propia, delegar y revocar. Las mutaciones exigen sesión y CSRF.
+- Auditoría de concesiones y revocaciones exitosas o denegadas, sin credenciales, hashes, cookies ni tokens.
 
-### Migración creada
+### Migraciones creadas
 
-- `apps/api/prisma/migrations/20260924170000_auth_session_revocation/migration.sql`.
-- Añade triggers de revocación por desactivación sin modificar el modelo de dominio aprobado.
-- Las dos migraciones se aplicaron desde bases vacías aisladas; la corrida final utilizó `edugestor_auth_race_20260924`.
+- `apps/api/prisma/migrations/20260925010000_authorization_invariants/migration.sql`.
+- `apps/api/prisma/migrations/20260925011000_allow_permission_revocation/migration.sql`.
+- Las cuatro migraciones acumuladas se aplicaron desde cero en `edugestor_authorization_test`; la base de desarrollo `edugestor` también quedó al día.
 
 ### Pruebas ejecutadas y resultado
 
-- Integración completa contra PostgreSQL real: 6 archivos y 20/20 pruebas aprobadas.
-- Cubierto: login correcto; credenciales incorrectas; usuario inexistente; usuario/docente desactivado; cookie; persistencia sólo del hash; sesión válida, expirada y revocada; `lastSeenAt`; logout; ausencia de sesión; ausencia de CSRF; revocación masiva; rate limiting; ausencia de secretos en respuestas, auditoría y logs.
+- PostgreSQL real desde base vacía: 7 archivos y 36/36 pruebas aprobadas.
+- Los 15 casos obligatorios de autorización aprobaron, además del rechazo explícito de `RESOURCE_SET` y las rutas HTTP con `requirePermission`/aislamiento docente.
 - `prisma validate`: aprobado.
-- `prisma generate`: aprobado tras liberar un proceso local antiguo que mantenía bloqueado el binario de Prisma en Windows.
+- `prisma generate`: aprobado.
+- `prisma migrate status`: 4 migraciones; esquema al día.
 - `npm run typecheck`: aprobado en `shared`, `api` y `web`.
 - `npm run build`: aprobado en los tres workspaces, incluido Vite.
-- `npm test`: Shared 1, API 9 y Web 1 aprobadas; las 11 pruebas PostgreSQL se omiten por defecto y fueron ejecutadas por separado.
+- `npm test`: Shared 1, API 9 y Web 1 aprobadas; las 27 pruebas PostgreSQL se omiten por defecto y se ejecutaron por separado con `RUN_DATABASE_TESTS=1`.
+- `bootstrap:authorization-catalog`: dos ejecuciones consecutivas aprobadas; 13 permisos sin duplicación.
+- `docker compose config --quiet`: aprobado.
 
-### Errores o límites pendientes
+### Errores encontrados y corregidos
 
-- Ningún error conocido dentro de este checkpoint.
-- El rate limiting utiliza memoria del proceso, adecuado para la instancia única actual. Antes de desplegar varias réplicas debe configurarse un store compartido y atómico.
-- Aún no se implementaron resolución de permisos/ámbitos, delegación, CRUD administrativo, aislamiento de asignaciones docentes ni frontend de login.
+- El primer intento de la migración de autorización falló por usar una palabra reservada de PostgreSQL como alias; se corrigió el SQL y la migración se aplicó completa.
+- La primera integración reveló que el trigger de procedencia revalidaba el padre durante una revocación en cascada. La migración correctiva permite cambiar únicamente el estado y conserva inmutables la asignación, permiso, padre y delegante.
+- No quedan errores conocidos dentro del checkpoint.
+
+### Límites vigentes
+
+- Los roles son etiquetas de asignación y no conceden permisos implícitos; los permisos efectivos siempre provienen de `RoleAssignmentPermission`.
+- Las concesiones raíz requieren una cuenta técnica activa y no se exponen mediante la API ordinaria.
+- No se implementaron aún CRUD de instituciones/docentes/contexto académico/cursos/materias/asignaciones ni pantallas administrativas.
+- `RESOURCE_SET` permanece fuera del Hito 1.
 
 ### Siguiente checkpoint exacto
 
-Implementar exclusivamente el motor de autorización del Hito 1: resolución de `RoleAssignment` y `RoleAssignmentPermission` vigentes, ámbitos `INSTITUTION` y `COURSE_SET`, cadena de delegación efectiva, `requirePermission` y `requireOwnTeachingAssignment`, con pruebas de denegación por defecto, ámbitos distintos, múltiples roles, delegación excesiva y acceso docente a asignaciones propias/ajenas. No iniciar todavía CRUD administrativo ni módulos académicos posteriores.
+**Instituciones + docentes + contexto académico + cursos + materias + TeachingAssignment.**

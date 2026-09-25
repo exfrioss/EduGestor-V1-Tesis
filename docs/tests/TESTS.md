@@ -86,3 +86,42 @@ Cobertura de autenticación ejecutada contra PostgreSQL real:
 - Inspección de respuestas, auditoría y logs para verificar ausencia de contraseña, `passwordHash` y token opaco.
 
 El primer intento final de `prisma generate` encontró `EPERM` porque un proceso Node antiguo del propio repositorio mantenía cargado el DLL de Prisma. Se identificó ese proceso por el módulo abierto, se detuvo únicamente ese PID y la repetición aprobó. No queda un defecto de código asociado.
+
+## Ejecución del 25/09/2026 — autorización jerárquica Hito 1
+
+Base aislada: `edugestor_authorization_test`, creada vacía en PostgreSQL 17 de Docker y migrada con las cuatro migraciones versionadas.
+
+| Verificación | Resultado |
+|---|---|
+| `npm run prisma:validate` | Aprobado |
+| `npm run prisma:generate` | Aprobado |
+| Migración desde base vacía | 4 migraciones aplicadas |
+| `prisma migrate status` | Esquema al día |
+| Integración con `RUN_DATABASE_TESTS=1` | 7 archivos, 36/36 pruebas aprobadas |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Vite aprobados |
+| `npm test` | Shared 1, API 9 y Web 1 aprobadas; 27 pruebas PostgreSQL omitidas por defecto |
+| Catálogo idempotente | 2 ejecuciones, 13 permisos sincronizados sin duplicación |
+| `docker compose config --quiet` | Aprobado |
+
+Cobertura de autorización ejecutada contra PostgreSQL real:
+
+1. Permiso y scope correctos: permitido.
+2. Permiso correcto y scope incorrecto: rechazado.
+3. Scope correcto y permiso incorrecto: rechazado.
+4. Permiso de una concesión y scope de otra: rechazado.
+5. Administrador institucional dentro de su institución: permitido.
+6. Administrador limitado a curso fuera de ámbito: rechazado.
+7. Delegación hacia scope menor con `parentGrantId`: permitida.
+8. Delegación de permiso superior: rechazada y auditada.
+9. Delegación de scope superior: rechazada y auditada.
+10. Autoelevación: rechazada y auditada.
+11. Intento de formar un ciclo alterando la procedencia: rechazado por inmutabilidad SQL.
+12. Concesión revocada y descendientes: dejan de autorizar y quedan revocados cuando corresponde.
+13. Usuario con varios roles: no acumula permiso y scope de concesiones distintas.
+14. Docente A frente a asignación de Docente B: rechazado tanto en servicio como en API.
+15. Auditoría de éxitos y rechazos: presente y sin contraseñas, hashes, cookies ni tokens.
+
+También se verificaron el rechazo explícito de `RESOURCE_SET`, el middleware `requirePermission`, la resolución de recursos desde la base y la ruta de comprobación de asignación docente propia.
+
+Durante la ejecución se corrigieron dos errores antes de la corrida final: un alias SQL reservado y la revalidación innecesaria del padre al actualizar únicamente `revokedAt`. La segunda condición quedó corregida mediante una migración adicional y volvió a probarse desde base vacía.

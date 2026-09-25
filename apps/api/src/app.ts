@@ -13,6 +13,7 @@ import { createHealthRouter } from './modules/health/health.router.js';
 import { createAuthRouter } from './modules/auth/auth.router.js';
 import type { PrismaClient } from '@prisma/client';
 import type { AuthConfig } from './config.js';
+import { createAuthorizationRouter } from './modules/authorization/authorization.router.js';
 
 interface AppOptions {
   allowedOrigins?: string[];
@@ -50,6 +51,10 @@ export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => 
   app.use(createHealthRouter(database));
   if (options.auth !== undefined) {
     app.use('/api/v1/auth', createAuthRouter(options.auth.client, options.auth.config));
+    app.use(
+      '/api/v1/authorization',
+      createAuthorizationRouter(options.auth.client, options.auth.config),
+    );
   }
 
   app.use(notFoundHandler);
