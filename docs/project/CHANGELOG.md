@@ -1,5 +1,18 @@
 # Changelog
 
+## 25/09/2026 — Núcleo institucional y académico backend del Hito 1
+
+- Se añadió el módulo `academic` con separación controller, servicio, repositorio y Prisma.
+- Se implementaron operaciones privadas y autorizadas de instituciones, años lectivos, docentes/cuentas/vínculos, cursos, materias y asignaciones docentes.
+- Se añadió creación transaccional de cuenta, perfil docente y vínculo institucional, conservando credenciales únicamente como hash `scrypt`.
+- Se implementaron activación, desactivación y reactivación sin borrado físico; desactivar docente revoca sesiones existentes.
+- Se normalizan grado, sección, turno y nombres comparables antes de aplicar las restricciones únicas.
+- Se implementó validación completa y retiro lógico de `TeachingAssignment`, junto con el endpoint docente `GET /api/v1/me/teaching-assignments`.
+- Se incorporó auditoría de mutaciones exitosas y rechazos relevantes sin secretos.
+- Se añadieron reintentos acotados para conflictos de transacciones serializables `P2034`.
+- Se agregaron 2 pruebas unitarias de normalización, los 17 casos obligatorios y una prueba HTTP adicional de sesión/CSRF; la regresión PostgreSQL completa aprobó 56/56 pruebas.
+- No se modificó el schema Prisma ni se implementaron estudiantes, tareas, asistencia, currículo, planificación, IA o frontend funcional.
+
 ## 25/09/2026 — Motor de autorización jerárquica del Hito 1
 
 - Se implementó autorización con denegación por defecto, permisos explícitos y ámbitos `INSTITUTION`/`COURSE_SET`, sin combinar permiso y scope de concesiones diferentes.

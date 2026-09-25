@@ -14,6 +14,7 @@ import { createAuthRouter } from './modules/auth/auth.router.js';
 import type { PrismaClient } from '@prisma/client';
 import type { AuthConfig } from './config.js';
 import { createAuthorizationRouter } from './modules/authorization/authorization.router.js';
+import { createAcademicRouter } from './modules/academic/academic.router.js';
 
 interface AppOptions {
   allowedOrigins?: string[];
@@ -55,6 +56,7 @@ export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => 
       '/api/v1/authorization',
       createAuthorizationRouter(options.auth.client, options.auth.config),
     );
+    app.use('/api/v1', createAcademicRouter(options.auth.client, options.auth.config));
   }
 
   app.use(notFoundHandler);

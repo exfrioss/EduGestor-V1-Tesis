@@ -152,3 +152,106 @@ npm run bootstrap:authorization-catalog -w @edugestor/api
 ```
 
 No contiene permisos de estudiantes, tareas, evaluaciones, asistencia, currículo, planificación ni IA.
+
+## Núcleo institucional y académico Hito 1
+
+Todas estas rutas requieren cookie de sesión válida y devuelven `Cache-Control: no-store`. `POST` y `PATCH` requieren además cookie CSRF y `X-CSRF-Token`. No existen rutas `DELETE`: la desactivación o el retiro conservan UUID, relaciones e historial.
+
+La autorización se resuelve dentro de los servicios. Las lecturas requieren el permiso `.read` correspondiente y las mutaciones `.manage`, siempre sobre un scope que contenga la institución o el curso afectado.
+
+### Instituciones
+
+| Método y ruta | Descripción |
+|---|---|
+| `POST /api/v1/institutions` | Bootstrap excepcional de institución. Solo cuenta `TECHNICAL`; exige `technicalReason`. |
+| `GET /api/v1/institutions` | Lista únicamente instituciones con `institution.read` efectivo. |
+| `GET /api/v1/institutions/:institutionId` | Consulta autorizada. |
+| `PATCH /api/v1/institutions/:institutionId` | Actualiza el nombre. |
+| `POST /api/v1/institutions/:institutionId/deactivate` | Desactiva sin cascada ni borrado. |
+| `POST /api/v1/institutions/:institutionId/activate` | Activa la misma institución. |
+| `POST /api/v1/institutions/:institutionId/reactivate` | Alias explícito de reactivación. |
+
+La creación inicial no puede autorizarse mediante un scope de la misma institución antes de que esta exista. Conforme a `DATABASE.md`, permanece reservada al bootstrap técnico auditado. Una cuenta administrativa ordinaria recibe después concesiones explícitas sobre la institución creada.
+
+### Docentes y cuentas
+
+Base: `/api/v1/institutions/:institutionId/teachers`.
+
+| Método y sufijo | Descripción |
+|---|---|
+| `POST /` | Crea perfil y vínculo; puede crear una cuenta `STANDARD` o utilizar un `userId` existente disponible. |
+| `GET /` | Lista docentes vinculados histórica o actualmente a la institución. |
+| `GET /:teacherId` | Consulta la proyección segura de docente, cuenta y vínculos. |
+| `PATCH /:teacherId` | Actualiza `displayName`. |
+| `POST /:teacherId/deactivate` | Desactiva docente y revoca sesiones. |
+| `POST /:teacherId/activate` o `/reactivate` | Reactiva el perfil sin crear sesión ni permiso. |
+| `POST /:teacherId/link` | Crea o rehabilita `TeacherInstitution`. |
+| `POST /:teacherId/unlink` | Finaliza el vínculo mediante `endedAt`. |
+
+Creación con cuenta nueva:
+
+```json
+{
+  "displayName": "Docente Uno",
+  "account": {
+    "kind": "NEW",
+    "login": "docente.uno",
+    "password": "secreto-entregado-fuera-de-logs"
+  }
+}
+```
+
+La respuesta nunca contiene contraseña ni `passwordHash`.
+
+### Años lectivos
+
+| Método y ruta | Descripción |
+|---|---|
+| `POST /api/v1/institutions/:institutionId/academic-years` | Crea año lectivo; usa `course.manage`. |
+| `GET /api/v1/institutions/:institutionId/academic-years` | Lista años autorizados. |
+| `GET /api/v1/institutions/:institutionId/academic-years/current` | Devuelve el año marcado `isCurrent`; `404` si no existe. |
+| `GET /api/v1/academic-years/:academicYearId` | Consulta individual. |
+| `PATCH /api/v1/academic-years/:academicYearId` | Actualiza etiqueta, fechas o `isCurrent`. |
+
+`startsOn` debe ser anterior o igual a `endsOn`; no puede haber dos filas `isCurrent=true` para una institución.
+
+### Cursos
+
+| Método y ruta | Descripción |
+|---|---|
+| `POST /api/v1/courses` | Crea curso con `institutionId`, `academicYearId`, `grade`, `section` y `shift`. |
+| `GET /api/v1/courses?institutionId=uuid` | Lista solo cursos cubiertos por las concesiones del actor. |
+| `GET /api/v1/courses/:courseId` | Consulta individual autorizada. |
+| `PATCH /api/v1/courses/:courseId` | Actualiza contexto permitido y descriptores. No cambia el año si ya existe historia de asignaciones. |
+| `POST /api/v1/courses/:courseId/deactivate` | Desactiva sin borrar. |
+| `POST /api/v1/courses/:courseId/activate` o `/reactivate` | Reactiva el curso. |
+
+Grado, sección y turno se normalizan antes de aplicar la unicidad institucional/año/curso.
+
+### Materias
+
+| Método y ruta | Descripción |
+|---|---|
+| `POST /api/v1/subjects` | Crea materia institucional genérica. |
+| `GET /api/v1/subjects?institutionId=uuid` | Lista materias autorizadas. |
+| `GET /api/v1/subjects/:subjectId` | Consulta individual. |
+| `PATCH /api/v1/subjects/:subjectId` | Actualiza nombre y disciplina curricular opcional. |
+| `POST /api/v1/subjects/:subjectId/deactivate` | Desactiva sin borrar. |
+| `POST /api/v1/subjects/:subjectId/activate` o `/reactivate` | Reactiva la materia. |
+
+`curriculumDiscipline` es opcional. El catálogo no está limitado a `MATEMATICA_APLICADA` y `ALGORITMICA`.
+
+### Asignaciones docentes
+
+| Método y ruta | Descripción |
+|---|---|
+| `POST /api/v1/teaching-assignments` | Crea una terna docente–curso–materia coherente y activa. |
+| `GET /api/v1/teaching-assignments?institutionId=uuid` | Lista administrativa filtrada por permiso/scope; admite `courseId`, `teacherId` e `includeEnded`. |
+| `GET /api/v1/teaching-assignments/:assignmentId` | Lectura administrativa autorizada o lectura docente propia vigente. |
+| `POST /api/v1/teaching-assignments/:assignmentId/retire` | Fija `endedAt`; no borra ni reatribuye historia. |
+| `POST /api/v1/teaching-assignments/:assignmentId/reactivate` | Limpia `endedAt` solo si todo el contexto vuelve a estar activo. |
+| `GET /api/v1/me/teaching-assignments` | Lista únicamente asignaciones vigentes del docente autenticado. |
+
+La creación valida docente y cuenta activos, vínculo `TeacherInstitution` vigente, institución/curso/materia activos, contexto institucional idéntico y terna no duplicada. El UUID de una asignación ajena no concede acceso.
+
+Conflictos de unicidad devuelven `409 CONFLICT`; contexto o estado inválido devuelve `400 VALIDATION_ERROR`; falta de permiso devuelve `403 PERMISSION_DENIED`.

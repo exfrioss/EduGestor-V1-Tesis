@@ -36,7 +36,7 @@ export class DelegationService {
 
   async delegate(input: DelegateGrantInput, context: OperationContext) {
     try {
-      return await this.client.$transaction(
+      return await this.serializableTransaction(
         async (transaction) => {
           if (input.targetUserId === context.actorUserId) {
             throw denied('No se permite la autodelegación');
@@ -141,7 +141,6 @@ export class DelegationService {
             permissions: uniquePermissions,
           };
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (error) {
       if (error instanceof AppError) {
@@ -159,7 +158,7 @@ export class DelegationService {
 
   async revoke(assignmentId: string, context: OperationContext): Promise<void> {
     try {
-      await this.client.$transaction(
+      await this.serializableTransaction(
         async (transaction) => {
           const assignment = await transaction.roleAssignment.findUnique({
             where: { id: assignmentId },
@@ -256,7 +255,6 @@ export class DelegationService {
             },
           });
         },
-        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
     } catch (error) {
       if (error instanceof AppError) {
@@ -335,6 +333,27 @@ export class DelegationService {
         details,
       },
     });
+  }
+
+  private async serializableTransaction<T>(
+    work: (transaction: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        return await this.client.$transaction(work, {
+          isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+        });
+      } catch (error) {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== 'P2034' ||
+          attempt === 3
+        ) {
+          throw error;
+        }
+      }
+    }
+    throw new Error('No se pudo completar la transacción serializable');
   }
 
   private async appendAudit(

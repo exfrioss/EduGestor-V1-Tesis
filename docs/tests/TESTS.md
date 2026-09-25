@@ -125,3 +125,42 @@ Cobertura de autorización ejecutada contra PostgreSQL real:
 También se verificaron el rechazo explícito de `RESOURCE_SET`, el middleware `requirePermission`, la resolución de recursos desde la base y la ruta de comprobación de asignación docente propia.
 
 Durante la ejecución se corrigieron dos errores antes de la corrida final: un alias SQL reservado y la revalidación innecesaria del padre al actualizar únicamente `revokedAt`. La segunda condición quedó corregida mediante una migración adicional y volvió a probarse desde base vacía.
+
+## Ejecución del 25/09/2026 — núcleo institucional y académico Hito 1
+
+Base aislada: `edugestor_academic_test`, creada vacía en PostgreSQL 17 de Docker y migrada con las cuatro migraciones versionadas existentes.
+
+| Verificación | Resultado |
+|---|---|
+| `npm run prisma:validate` | Aprobado |
+| `npm run prisma:generate` | Aprobado |
+| Migración desde base vacía | 4 migraciones aplicadas |
+| `prisma migrate status` | Base de desarrollo al día |
+| Integración con `RUN_DATABASE_TESTS=1` | 9 archivos, 56/56 pruebas aprobadas |
+| `npm run typecheck` | Shared, API y Web aprobados |
+| `npm run build` | Shared, API y Vite aprobados |
+| `npm test` | Shared 1, API 11 y Web 1 aprobadas; 45 integraciones omitidas por defecto |
+
+Casos nuevos ejecutados contra PostgreSQL real:
+
+1. Creación institucional mediante bootstrap técnico auditado y establecimiento posterior de scope explícito.
+2. Rechazo de creación ordinaria y consulta fuera del scope institucional.
+3. Creación transaccional de cuenta, docente y vínculo institucional.
+4. Desactivación docente con revocación de sesiones y reactivación sin restaurarlas.
+5. Creación y consulta del año lectivo actual.
+6. Rechazo de dos años actuales en una institución.
+7. Creación de curso con contexto y valores normalizados.
+8. Rechazo de curso duplicado por combinación normalizada.
+9. Creación de materia genérica sin disciplina curricular obligatoria.
+10. Creación de dos asignaciones docentes válidas.
+11. Rechazo de terna duplicada.
+12. Rechazo separado de docente, curso y materia pertenecientes a otra institución.
+13. Rechazo de curso o materia inactivos al crear una asignación.
+14. Consulta docente propia mediante servicio y `GET /api/v1/me/teaching-assignments`.
+15. Rechazo de lectura por UUID de una asignación ajena.
+16. Retiro lógico que conserva la fila y elimina el acceso docente operativo.
+17. Auditoría de éxitos y rechazos sin contraseñas, hashes, cookies ni tokens.
+
+Adicionalmente, una prueba HTTP verifica rechazo sin sesión, rechazo de mutación sin CSRF y creación autorizada atravesando router, controlador, servicio, repositorio y Prisma.
+
+La ejecución paralela de integración expuso un conflicto serializable `P2034` en delegación. Se incorporó un reintento acotado de hasta tres intentos en las transacciones de autorización y académicas. La corrida final desde cero aprobó sin fallos.

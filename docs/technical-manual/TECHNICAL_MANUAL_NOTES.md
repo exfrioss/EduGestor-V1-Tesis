@@ -141,3 +141,68 @@ npm run test -w @edugestor/api
 ```
 
 La suite no limpia `AuditLog`, que es append-only; nunca debe apuntarse a datos reales.
+
+## Núcleo institucional y académico
+
+El módulo se encuentra en `apps/api/src/modules/academic` y mantiene la secuencia:
+
+```text
+academic.router → AcademicController → AcademicService → AcademicRepository → Prisma/PostgreSQL
+```
+
+El router aplica autenticación y CSRF. El controlador valida contratos Zod y construye el contexto del actor. El servicio decide autorización, reglas de estado, coherencia y auditoría. El repositorio concentra consultas y escrituras Prisma. Los controladores no deciden permisos.
+
+### Instituciones
+
+La administración ordinaria requiere `institution.read` o `institution.manage` sobre la propia institución. Crear la primera fila no puede depender de un `AccessScope` que todavía no puede existir por su FK; por ello `POST /api/v1/institutions` conserva la excepción normativa de bootstrap: cuenta `TECHNICAL`, motivo obligatorio y auditoría. No concede automáticamente scope, rol ni permiso.
+
+### Docentes
+
+La creación con cuenta nueva calcula el hash `scrypt` antes de abrir la transacción y persiste `User`, `Teacher`, `TeacherInstitution` y `AuditLog` dentro de una única transacción serializable. También puede vincular una cuenta estándar existente que esté activa y no tenga perfil docente.
+
+Desactivar `Teacher` actualiza estado, fecha y actor. El trigger PostgreSQL existente revoca todas sus `AuthSession` activas. Reactivar no modifica `User`, no crea sesiones y no restaura concesiones revocadas.
+
+`TeacherInstitution` nunca se elimina: `unlink` establece `endedAt` y `link` rehabilita la misma fila.
+
+### Contexto académico
+
+- `AcademicYear` valida fechas y deja a PostgreSQL imponer etiqueta única y un único año actual por institución.
+- `Course` normaliza grado, sección y turno con colapso de espacios, minúsculas y eliminación de diacríticos antes de la restricción única.
+- Cambiar el año de un curso se rechaza si ya existe historia de `TeachingAssignment`.
+- `Subject` normaliza el nombre comparable. `curriculumDiscipline` es metadato opcional y no restringe el catálogo genérico.
+- No existen operaciones de borrado físico.
+
+### TeachingAssignment
+
+La creación comprueba en la misma transacción:
+
+- permiso `teaching-assignment.manage` sobre el curso;
+- institución activa;
+- docente y cuenta activos;
+- `TeacherInstitution` vigente;
+- curso y materia activos;
+- pertenencia de curso y materia a la institución;
+- unicidad de docente + curso + materia.
+
+El contexto no se reasigna. Para cambiar docente, curso o materia se retira la asignación anterior y se crea una nueva. `retire` establece `endedAt`; `reactivate` solo lo limpia si todas las dependencias vuelven a ser válidas.
+
+`GET /api/v1/me/teaching-assignments` deriva el docente desde la sesión y consulta por su `teacherId`; no acepta un docente aportado por el cliente. La lectura individual propia exige que la asignación siga vigente. Las lecturas administrativas se evalúan por permiso y scope de forma separada.
+
+### Auditoría y concurrencia
+
+Cada mutación exitosa y su `AuditLog` se guardan atómicamente. Los rechazos controlados se auditan después del rollback. Las proyecciones de auditoría excluyen contraseña, hash y tokens.
+
+Las transacciones serializables reintentan hasta tres veces el error Prisma `P2034`. Agotar los intentos conserva el error y no confirma escrituras parciales.
+
+### Pruebas PostgreSQL
+
+Usar una base desechable vacía:
+
+```powershell
+$env:DATABASE_URL='postgresql://usuario:clave@localhost:5432/base_academica_desechable?schema=public'
+npm run prisma:migrate:deploy -w @edugestor/api
+$env:RUN_DATABASE_TESTS='1'
+npm run test -w @edugestor/api
+```
+
+La suite crea auditoría append-only y no debe ejecutarse contra datos reales.
