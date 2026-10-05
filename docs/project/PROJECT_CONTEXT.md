@@ -1,5 +1,27 @@
 # EduGestor V1.0 — Contexto de continuidad
 
+## CHECKPOINT DOCUMENTAL APROBADO — Hito 2A: Student + Enrollment
+
+**Fecha:** 04/10/2026. **Estado:** diseño aprobado y documentado; sin implementación de Student/Enrollment, sin migración ni pruebas ejecutadas de Hito 2A. **Base:** REQUIREMENTS.md revisión 4, DATABASE.md aprobado y paquete técnico más reciente que contiene `permission-catalog.ts` y `schema.prisma`. Los 34 RF y 15 RNF no cambian.
+
+- Alcance: identidad Student independiente y matrícula Enrollment en Course + AcademicYear; alta conjunta atómica, búsqueda contextual, nómina, detalle, historial autorizado, corrección de identidad con UUID estable y activación/desactivación/reactivación sin pérdida histórica. RF-034 obtiene solo su base Student + Enrollment.
+- Cuatro permisos **propuestos, no implementados**: `student.read`, `student.manage`, `enrollment.read`, `enrollment.manage`, según recurso singular. Los 17 existentes siguen vigentes; el demo no recibe los cuatro nuevos automáticamente. Solo ámbitos INSTITUTION/COURSE_SET implementados; `RESOURCE_SET` permanece rechazado.
+- Docente: permisos efectivos y TeachingAssignment propia vigente para cada curso consultado. Institución: únicamente matrículas de su ámbito. Una modificación de Student global exige gestión sobre todos los contextos actuales; denegación genérica sin enumerar contextos no autorizados.
+- Cédula externa ya existente: conflicto genérico, sin UUID o datos de institución/matrícula; no crear identidad duplicada ni fusión/reclamación automática. Sin cédula se admiten varios NULL y no se puede asegurar deduplicación global por nombre.
+- Integridad: cédula original y normalizada ambas nulas o ambas informadas, índice único cuando existe, matrícula triple única, año compatible mediante FK compuesta, entidades activas para nuevos vínculos, historia sin borrado ni reasignación, `rowVersion`, transacciones y auditoría. Comprobar migraciones SQL existentes para la restricción Course–AcademicYear–Institution antes de agregarla.
+- Estado técnico comprobable en el esquema adjunto: Course y sus claves candidatas existen; **Student y Enrollment no existen**. Se necesitará una migración posterior. El módulo curricular implementado permanece independiente.
+- UX: Institución → Curso → Estudiantes y Materia → Perfiles de Alumnos utilizan las mismas entidades, preservando Inicio → Institución → Curso → Materia → espacio de trabajo. Buscar estudiante visible antes del alta, permitir cédula ausente, mostrar inactividad y abrir solamente identidad/matrícula hasta implementar los otros módulos.
+- Fuera de 2A: tareas, banco, evaluaciones, calificaciones, puntos extra, asistencia, anecdótico, conducta, informes grupales, consulta pública, importación CSV/XLSX, planificación, mallas, IA y perfil integral completo. RF-022 puede abordarse en checkpoint posterior.
+- Contratos completos: [API.md](../architecture/API.md), sección Hito 2A. Decisión [STU-ENR-01](../architecture/DECISIONS.md). Matriz pendiente en [TESTS.md](../tests/TESTS.md). Ningún resultado de pruebas de 2A se declara ejecutado.
+
+### Siguiente checkpoint exacto para Codex — implementar Hito 2A
+
+1. Leer estos contratos y el esquema real; comprobar las migraciones SQL para Course–AcademicYear–Institution y el tratamiento operativo de identidad ya registrada fuera del ámbito, sin conceder acceso global.
+2. Incorporar los cuatro permisos al catálogo/sincronización sin alterar concesiones demo; añadir Student y Enrollment a Prisma y preparar una migración restrictiva con sus índices, `CHECK` y FK compuesta.
+3. Implementar normalización, transacciones, bloqueo/versión, auditoría, autorización contextual y las rutas exactas de API.md. Para cambio global, denegar sin enumerar ámbitos; para cédula externa, `409` genérico sin datos ajenos.
+4. Implementar nómina, búsqueda previa, alta/matrícula, detalle básico y acceso contextual desde Materia, sin datos de otros módulos.
+5. Ejecutar y registrar pruebas PostgreSQL concurrentes, Supertest, RTL y E2E reales; repetir regresión Hito 1 y currículo. No declarar pruebas DB omitidas por la suite ordinaria como aprobadas.
+
 ## CHECKPOINT COMPLETADO — API, autorización y UX curricular
 
 **Fecha:** 25/09/2026.
@@ -58,8 +80,8 @@ No se creó una migración nueva en este checkpoint. Se reutiliza la migración 
 - `RESOURCE_SET` continúa fuera de alcance.
 - No se modificaron `REQUIREMENTS.md`, `DATABASE.md`, `PROJECT_MASTER.md` ni `legacy/`.
 
-### Siguiente checkpoint exacto
+### Siguiente checkpoint previsto al cierre curricular del 25/09 (histórico)
 
-**Definir y aprobar el contrato del módulo Curriculum/mallas antes de implementar capacidades, contenidos, indicadores o disponibilidad validada.**
+**Definir y aprobar el contrato del módulo Curriculum/mallas antes de implementar capacidades, contenidos, indicadores o disponibilidad validada.** Esta era la siguiente tarea prevista el 25/09; el checkpoint activo de implementación es Hito 2A, descrito al comienzo de este documento.
 
 La siguiente tarea debe comenzar leyendo los documentos normativos y decidir la fuente/versionado de mallas, su relación exacta con `CurriculumDiscipline` + `btiYear`, permisos, auditoría y estados de disponibilidad. No inferir datos ni ampliar el dominio antes de esa aprobación.

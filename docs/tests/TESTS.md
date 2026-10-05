@@ -1,5 +1,42 @@
 # Pruebas técnicas y de persistencia
 
+## Matriz pendiente — Hito 2A Student + Enrollment (diseño aprobado 04/10/2026)
+
+**Estado: pruebas previstas, ninguna ejecutada para Hito 2A.** No sumar estos casos a las cifras históricas de Hito 1 o currículo. Los identificadores `STU-*` son claves de pruebas, no nuevos RF/RNF. Ejecutar Vitest/Supertest con PostgreSQL desechable, RTL y Playwright real según corresponda; el frontend no sustituye comprobaciones de backend. API.md define los contratos y DECISIONS.md la decisión STU-ENR-01.
+
+| Caso | Nivel | Verificación y resultado esperado |
+|---|---|---|
+| STU-01 | DB/API | Alta con cédula crea Student UUID y Enrollment UUID distintos, año del curso y respuesta contextual; auditoría en la misma transacción. |
+| STU-02 | DB/API | Alta sin cédula guarda `nationalId` y `nationalIdNormalized` en NULL; dos estudiantes sin cédula no colisionan por ese índice. |
+| STU-03 | Unit/DB | Normalización determinista: formatos equivalentes producen la misma clave y se conservan ceros iniciales; nunca generar valor ficticio. |
+| STU-04 | DB/API | Segunda cédula normalizada devuelve 409 CONFLICT y ninguna fila nueva, sin exponer otra identidad. |
+| STU-05 | Concurrencia DB/API | Dos altas simultáneas de la misma cédula dejan una sola identidad y primera matrícula; la otra petición recibe conflicto genérico; ninguna auditoría de éxito huérfana. |
+| STU-06 | DB/API | Corregir nombre, incorporar/quitar/corregir cédula con `expectedVersion` conserva Student UUID y las matrículas; versión vieja: 409 STALE_VERSION. |
+| STU-07 | DB/API | Desactivar/reactivar Student preserva UUID y matrículas; inactivo es legible históricamente con autorización y no admite nueva matrícula; reactivar no concede permisos ni cambia estados de otras entidades. |
+| STU-08 | DB/API | Matrícula válida de identidad ya visible reutiliza Student UUID y enlaza Course + AcademicYear correctos. |
+| STU-09 | DB/API | Misma terna Student/Course/AcademicYear dos veces devuelve 409 y deja una sola fila. |
+| STU-10 | Concurrencia DB/API | Dos matrículas idénticas simultáneas dejan una fila, una creación y un conflicto; rollback completo en la perdedora. |
+| STU-11 | DB/API | academicYearId diferente del de Course devuelve 422 INVALID_REFERENCE; verificar FK compuesta y ausencia de fila, incluyendo una solicitud que omita controles frontend. |
+| STU-12 | DB/API | Student, Course o Institution inactivo impide vínculo nuevo; desactivación no reescribe matrículas existentes. |
+| STU-13 | Seguridad HTTP | Administrador de A intenta usar IDs de Student/Enrollment/Course de B en lista, detalle, historial, alta o PATCH: ninguna matrícula ni contexto ajeno se devuelve; 404 uniforme cuando el recurso no es visible. |
+| STU-14 | Seguridad HTTP | Docente con `student.read` + `enrollment.read` efectivos y TeachingAssignment propia vigente ve únicamente matriculados de su curso. Rol docente o asignación sin permisos no basta. |
+| STU-15 | Seguridad HTTP | Docente consulta curso ajeno o asignación ajena/finalizada: denegado; variar institutionId/courseId de ruta y filtros no amplía el acceso. |
+| STU-16 | Seguridad HTTP | Student con matrículas en A y B conserva una identidad; admin de A ve datos básicos y solo filas de A. B no aparece en historia, búsquedas, nómina, cursor, totales ni errores. |
+| STU-17 | Seguridad/concurrencia | PATCH global de Student compartido sin `student.manage` sobre todos los contextos: 403 PERMISSION_DENIED genérico sin identificar instituciones, cursos, matrículas ni cantidad. Matrícula concurrente no puede invalidar comprobación de autorización. |
+| STU-18 | Seguridad HTTP | La cédula ya existe solo fuera del ámbito visible: búsqueda devuelve vacío indistinguible de inexistencia; alta devuelve 409 CONFLICT genérico sin `studentId`/institución/matrícula; no hay duplicado, fusión ni reclamación automática. |
+| STU-19 | API | Listado de curso muestra cada Enrollment con Student correcto, año y `isActive`; paginación/cursor estables, reautorizados y sin fugas. |
+| STU-20 | API | Historial devuelve solo matrículas autorizadas; contexto de curso obligatorio para acceso limitado/docente; ID global de Student no concede acceso a otros contextos. |
+| STU-21 | Seguridad/API | 401 sin sesión, 403 por CSRF/permisos y 400 por payload inválido/claves desconocidas; cuerpos preservan `error.code`, `error.message`, `error.requestId`, sin trazas ni datos ajenos. |
+| STU-22 | Integridad DB | FK restrictivas y ausencia de endpoints destructivos impiden borrar o reasignar historia; una corrección de nombre/cédula no modifica Student/Enrollment UUID ni claves de contexto. |
+| STU-23 | RTL | Curso → Estudiantes: búsqueda previa, alta o selección, cédula opcional, año/curso confirmados, estudiante inactivo y conflicto sin información externa; acciones según permisos. |
+| STU-24 | RTL/E2E real | Materia → Perfiles de Alumnos usa la misma identidad/matrícula contextual y TeachingAssignment vigente; no inventa tareas, notas, asistencia ni perfil integral. |
+| STU-25 | Regresión real | Recorrido Hito 1 completo: administrador → institución → docente → curso → materia → asignación → login docente → consulta propia 200/ajena denegada. |
+| STU-26 | Regresión real | Catálogo/correspondencias curriculares, aislamiento y referencia opcional de Subject; 17 permisos existentes conservados, nuevos cuatro no concedidos al demo automáticamente. |
+
+Antes de migrar, comprobar qué constraints SQL de Course–AcademicYear–Institution ya existen y probar el caso de institución cruzada. Verificar el esquema Prisma y la migración nueva Student + Enrollment, índices/UNIQUE/CHECK, relaciones y `ON DELETE RESTRICT`; no asumir que lo documentado ya está en base. Registrar resultados efectivamente ejecutados por grupo, junto con typecheck/build y suites ordinaria, DB y E2E. `RUN_DATABASE_TESTS=1` es necesario para afirmar cobertura PostgreSQL; no contabilizar pruebas omitidas como aprobadas.
+
+El cierre de Hito 2A **no** depende de pruebas para importación CSV/XLSX, consulta pública por cédula, tareas, banco, evaluaciones, calificaciones, asistencia, seguimiento, planificación, mallas o IA. RF-034 solo recibe identidad y matrícula; las demás fuentes se ensayarán en sus checkpoints correspondientes.
+
 La infraestructura configura:
 
 - Vitest para los tres workspaces.

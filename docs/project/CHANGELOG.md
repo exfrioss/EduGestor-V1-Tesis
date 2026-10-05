@@ -1,5 +1,16 @@
 # Changelog
 
+## 04/10/2026 — Diseño aprobado del Hito 2A (documentación)
+
+- Se documentó el checkpoint cerrado Student + Enrollment en API.md y la decisión STU-ENR-01 en DECISIONS.md, sin nuevos RF/RNF, código ni migraciones.
+- Se definieron para implementación futura `student.read`, `student.manage`, `enrollment.read` y `enrollment.manage` sin concesión automática; la lectura requiere matrícula visible y, para docentes, TeachingAssignment propia vigente.
+- Se aprobaron rutas privadas de alta conjunta, búsqueda contextual, nómina, detalle Student/Enrollment, historial autorizado, corrección identificativa y activación, además de alta de otra matrícula con identidad visible. No hay rutas para eliminación, finalización o traslado de Enrollment.
+- Se fijó denegación genérica cuando falte permiso para un cambio global de Student, sin enumerar otras instituciones/matrículas; cédula ya registrada fuera del ámbito produce `409 CONFLICT` genérico, sin exponer UUID/contexto ni crear duplicado o fusión automática.
+- Se especificaron cédula nullable normalizada única, matrícula triple única, contexto de año compatible, `rowVersion`, transacciones, auditoría, desactivación sin pérdida histórica y pruebas de concurrencia e aislamiento.
+- UX aprobada: Institución → Curso → Estudiantes y Materia → Perfiles de Alumnos sobre las mismas entidades; solo identidad/matrícula hasta contar con fuentes de RF-034. Importación CSV/XLSX y demás módulos académicos/pedagógicos quedan fuera de 2A.
+- La comparación con `schema.prisma` adjunto confirma que Student/Enrollment requieren migración posterior; debe revisarse primero la integridad Course–AcademicYear–Institution en las migraciones SQL ya aplicadas. TESTS.md registra pruebas **pendientes**, no resultados ejecutados.
+- Se actualizó el contexto de continuidad usando como base los documentos más recientes del paquete adjunto, que ya registran implementación y 77/77 pruebas de la API curricular. REQUIREMENTS.md, DATABASE.md y PROJECT_MASTER.md no fueron modificados.
+
 ## 25/09/2026 — API, autorización y UX curricular
 
 - Se incorporaron los cuatro permisos curriculares aprobados; el catálogo idempotente contiene 17 códigos y el bootstrap demo conserva exactamente los 13 del Hito 1.
