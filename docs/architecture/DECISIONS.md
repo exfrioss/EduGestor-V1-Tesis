@@ -2,7 +2,7 @@
 
 ## STU-ENR-01 — Hito 2A: identidad global y matrícula contextual
 
-**Estado:** diseño aprobado; implementación pendiente. **Fecha:** 04/10/2026. **Tipo:** concreción de RF-008 y D-01/D-02, sin nuevos RF/RNF ni modificación de D-01 a D-07. Contratos: [API.md](API.md), sección «Hito 2A: Student + Enrollment».
+**Estado:** implementado y validado el 05/10/2026. **Fecha de decisión:** 04/10/2026. **Tipo:** concreción de RF-008 y D-01/D-02, sin nuevos RF/RNF ni modificación de D-01 a D-07. Contratos: [API.md](API.md), sección «Hito 2A: Student + Enrollment».
 
 `Student` es una identidad global con UUID interno y cédula opcional normalizada, única si existe; `Enrollment` conserva la vinculación Student + Course + AcademicYear. El año de la matrícula debe ser el del curso; `AcademicYear` no equivale a `btiYear`. Una institución accede a Student **a través de matrículas autorizadas**, sin descubrir las demás. No hay cédulas ficticias, cuentas de estudiante, traslado silencioso ni eliminación física de historia. `Enrollment` no tiene en el modelo aprobado un estado, `endedAt` ni flujo de finalización ordinario.
 
@@ -12,9 +12,9 @@ Se aprueban para implementación, según la convención singular `recurso.acció
 
 **Precisión contractual de cédula externa:** búsqueda solo entre identidades visibles. Si `nationalIdNormalized` ya pertenece a una identidad fuera de ese ámbito, la restricción única produce un `409 CONFLICT` genérico sin `studentId`, institución o matrícula. No crear duplicado, fusionar ni reclamar automáticamente una identidad en Hito 2A. Reutilizar una identidad compartida requiere autorización explícita para los contextos necesarios o intervención técnica excepcional auditada. Sin cédula no se puede asegurar unicidad global por nombre y no se fusionan coincidencias de nombre.
 
-El alta de Student y primera Enrollment será atómica; otra matrícula reutiliza el UUID. Los índices únicos y FK compuesta previenen duplicados y curso/año discordantes también bajo concurrencia; `rowVersion`, transacciones y auditoría protegen modificaciones. La desactivación de Student conserva matrículas y bloquea nuevas; reactivar no crea vínculos ni privilegios. `schema.prisma` adjunto aún carece de ambos modelos, por lo que se requiere una migración posterior; verificar en migraciones SQL existentes la integridad institucional Course–AcademicYear antes de modificarla.
+El alta de Student y primera Enrollment es atómica; otra matrícula reutiliza el UUID. Los índices únicos y FK compuesta previenen duplicados y curso/año discordantes también bajo concurrencia; `rowVersion`, transacciones y auditoría protegen modificaciones. La desactivación de Student conserva matrículas y bloquea nuevas; reactivar no crea vínculos ni privilegios. La migración `20261005120000_student_enrollment` incorpora ambos modelos. La migración inicial ya contenía `Course_academic_year_institution_fkey`; se verificó en PostgreSQL y no se duplicó.
 
-UX: mantener **Inicio → Institución → Curso → Materia → espacio de trabajo**, añadir **Institución → Curso → Estudiantes** y enlazar desde **Materia → Perfiles de Alumnos** al mismo Student + Enrollment, mostrando solo la base disponible. Importación CSV/XLSX, consulta pública, módulos académicos, mallas, IA y RF-034 integral quedan fuera de Hito 2A. La verificación prevista figura en [TESTS.md](../tests/TESTS.md); no se registra ejecución de pruebas de 2A.
+UX: se mantiene **Inicio → Institución → Curso → Materia → espacio de trabajo**, se añade **Institución → Curso → Estudiantes** y se enlaza desde **Materia → Perfiles de Alumnos** al mismo Student + Enrollment, mostrando solo la base disponible. Importación CSV/XLSX, consulta pública, módulos académicos, mallas, IA y RF-034 integral quedan fuera de Hito 2A. La evidencia ejecutada figura en [TESTS.md](../tests/TESTS.md).
 
 ## CUR-API-01 — Administración curricular y correspondencias
 

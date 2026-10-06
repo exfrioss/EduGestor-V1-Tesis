@@ -25,6 +25,10 @@ export const PERMISSION_CATALOG = [
     code: 'subject-curriculum-mapping.manage',
     description: 'Administrar correspondencias curriculares institucionales',
   },
+  { code: 'student.read', description: 'Consultar estudiantes en contextos autorizados' },
+  { code: 'student.manage', description: 'Administrar datos y activación de estudiantes' },
+  { code: 'enrollment.read', description: 'Consultar matrículas autorizadas' },
+  { code: 'enrollment.manage', description: 'Crear matrículas en cursos autorizados' },
 ] as const;
 
 export const HITO1_PERMISSION_CODES = [

@@ -145,10 +145,10 @@ test('asocia, sustituye y retira una referencia usando React, Express y PostgreS
   await reference.getByRole('button', { name: 'Añadir referencia' }).click();
   await expect(reference.getByText('3.º BTI · Disciplina E2E sustituta')).toBeVisible();
 
-  const foreignStatus = await page.evaluate(async ({ institution, subject }) => {
-    const response = await fetch(`http://localhost:3000/api/v1/institutions/${institution}/subjects/${subject}/curriculum-mappings`, { credentials: 'include' });
+  const foreignStatus = await page.evaluate(async ({ institution, subject, apiUrl }) => {
+    const response = await fetch(`${apiUrl}/api/v1/institutions/${institution}/subjects/${subject}/curriculum-mappings`, { credentials: 'include' });
     return response.status;
-  }, { institution: foreignInstitutionId, subject: foreignSubjectId });
+  }, { institution: foreignInstitutionId, subject: foreignSubjectId, apiUrl: process.env.E2E_API_URL ?? 'http://localhost:3000' });
   expect(foreignStatus).toBe(404);
 
   await page.getByRole('button', { name: 'Cerrar sesión' }).click();
@@ -156,10 +156,10 @@ test('asocia, sustituye y retira una referencia usando React, Express y PostgreS
   await page.getByLabel('Contraseña').fill(teacherPassword);
   await page.getByRole('button', { name: 'Ingresar a EduGestor' }).click();
   await expect(page.getByRole('heading', { name: 'Mis asignaciones' })).toBeVisible();
-  const teacherRead = await page.evaluate(async ({ institution, subject, course }) => {
-    const response = await fetch(`http://localhost:3000/api/v1/institutions/${institution}/subjects/${subject}/curriculum-mappings?courseId=${course}`, { credentials: 'include' });
+  const teacherRead = await page.evaluate(async ({ institution, subject, course, apiUrl }) => {
+    const response = await fetch(`${apiUrl}/api/v1/institutions/${institution}/subjects/${subject}/curriculum-mappings?courseId=${course}`, { credentials: 'include' });
     const body = await response.json();
     return { status: response.status, count: Array.isArray(body.data) ? body.data.length : -1 };
-  }, { institution: institutionId, subject: subjectId, course: courseId });
+  }, { institution: institutionId, subject: subjectId, course: courseId, apiUrl: process.env.E2E_API_URL ?? 'http://localhost:3000' });
   expect(teacherRead).toEqual({ status: 200, count: 1 });
 });

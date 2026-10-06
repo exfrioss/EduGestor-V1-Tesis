@@ -1,6 +1,17 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT DOCUMENTAL APROBADO — Hito 2A: Student + Enrollment
+## CHECKPOINT COMPLETADO — Hito 2A: Student + Enrollment
+
+**Fecha:** 05/10/2026. **Rama:** `feat/hito2-students-enrollments`. **Estado:** implementado y validado sin commit.
+
+- `Student` global y `Enrollment` contextual se incorporaron al esquema y a la migración `20261005120000_student_enrollment`. La migración inicial ya contenía la FK compuesta `Course_academic_year_institution_fkey`; se verificó en PostgreSQL y no se duplicó. La nueva FK compuesta de Enrollment, los CHECK de cédula y activación, índices únicos y restricción de inmutabilidad se aplicaron en una base desechable.
+- El catálogo tiene 21 permisos: los 17 previos más `student.read/manage` y `enrollment.read/manage`. El demo Hito 1 no recibe los cuatro nuevos. Las nueve rutas privadas aprobadas usan sesión, CSRF en mutaciones, proyecciones contextuales, autorización efectiva y respuestas sin datos ajenos.
+- La lectura de Student requiere matrícula visible; para docentes, permisos, vínculo vigente y TeachingAssignment propia vigente. El cambio global bloquea la fila Student y comprueba `student.manage` sobre todos los contextos dentro de la transacción. El alta de matrícula toma el mismo bloqueo. Cédula ajena produce conflicto genérico; no hay fusión ni reclamación automática.
+- La UI enlaza Curso → Estudiantes y Materia → Perfiles de Alumnos, con nómina, búsqueda, alta, reutilización visible, cédula opcional, inactividad e historia contextual básica.
+- Verificación: `prisma validate/generate`, despliegue de seis migraciones en base vacía, `migrate status`, API PostgreSQL 89/89, suite ordinaria shared 1/1, API 13/13 (76 pruebas DB omitidas en esa ejecución), web 12/12, typecheck y build aprobados, E2E simulado 1/1 y E2E real 3/3. Los casos STU-01 a STU-26 y detalles constan en [TESTS.md](../tests/TESTS.md).
+- Fuera del checkpoint: Task, ActivityBank, Assessment, calificaciones, asistencia, seguimiento, informes, consulta pública, importación, mallas, planificación, IA y RF-034 integral.
+
+## HISTÓRICO — checkpoint documental aprobado del Hito 2A
 
 **Fecha:** 04/10/2026. **Estado:** diseño aprobado y documentado; sin implementación de Student/Enrollment, sin migración ni pruebas ejecutadas de Hito 2A. **Base:** REQUIREMENTS.md revisión 4, DATABASE.md aprobado y paquete técnico más reciente que contiene `permission-catalog.ts` y `schema.prisma`. Los 34 RF y 15 RNF no cambian.
 
@@ -14,7 +25,7 @@
 - Fuera de 2A: tareas, banco, evaluaciones, calificaciones, puntos extra, asistencia, anecdótico, conducta, informes grupales, consulta pública, importación CSV/XLSX, planificación, mallas, IA y perfil integral completo. RF-022 puede abordarse en checkpoint posterior.
 - Contratos completos: [API.md](../architecture/API.md), sección Hito 2A. Decisión [STU-ENR-01](../architecture/DECISIONS.md). Matriz pendiente en [TESTS.md](../tests/TESTS.md). Ningún resultado de pruebas de 2A se declara ejecutado.
 
-### Siguiente checkpoint exacto para Codex — implementar Hito 2A
+### Plan histórico de implementación del Hito 2A (completado el 05/10/2026)
 
 1. Leer estos contratos y el esquema real; comprobar las migraciones SQL para Course–AcademicYear–Institution y el tratamiento operativo de identidad ya registrada fuera del ámbito, sin conceder acceso global.
 2. Incorporar los cuatro permisos al catálogo/sincronización sin alterar concesiones demo; añadir Student y Enrollment a Prisma y preparar una migración restrictiva con sus índices, `CHECK` y FK compuesta.

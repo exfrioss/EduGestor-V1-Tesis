@@ -14,6 +14,7 @@ import { SubjectsPage } from './pages/admin/SubjectsPage';
 import { TeachersPage } from './pages/admin/TeachersPage';
 import { MyAssignmentsPage } from './pages/teacher/MyAssignmentsPage';
 import { RouteFocus } from './components/RouteFocus';
+import { StudentsPage } from './pages/StudentsPage';
 
 export function App() {
   const [queryClient] = useState(() => new QueryClient({
@@ -28,11 +29,12 @@ export function App() {
           <Route path="institutions" element={<InstitutionsPage />} />
           <Route path="institutions/:institutionId/teachers" element={<TeachersPage />} />
           <Route path="institutions/:institutionId/academic" element={<AcademicPage />} />
+          <Route path="institutions/:institutionId/courses/:courseId/students" element={<StudentsPage />} />
           <Route path="institutions/:institutionId/subjects" element={<SubjectsPage />} />
           <Route path="institutions/:institutionId/assignments" element={<AssignmentsPage />} />
         </Route>
       </Route>
-      <Route path="teacher" element={<TeacherLayout />}><Route path="assignments" element={<MyAssignmentsPage />} /></Route>
+      <Route path="teacher" element={<TeacherLayout />}><Route path="assignments" element={<MyAssignmentsPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/students" element={<StudentsPage />} /></Route>
       <Route path="forbidden" element={<ForbiddenPage />} />
     </Route>
     <Route path="*" element={<NotFoundPage />} />

@@ -1,5 +1,13 @@
 # Changelog
 
+## 05/10/2026 — Hito 2A Student + Enrollment implementado
+
+- Se añadió `Student` global y `Enrollment` histórico contextual con migración restrictiva, índices, CHECK de cédula/activación, FK compuesta y bloqueo de cambios destructivos de matrícula. Se verificó que `Course_academic_year_institution_fkey` ya existía.
+- El catálogo pasó de 17 a 21 permisos sin ampliar las concesiones demo. Se implementaron las nueve rutas de API.md con autorización contextual, bloqueo de Student para cambios globales y nuevas matrículas, control de versión, CSRF y auditoría transaccional.
+- La UI añadió Curso → Estudiantes y Materia → Perfiles de Alumnos con identidad y matrícula autorizadas, búsqueda, cédula opcional, reutilización visible e indicador de inactividad.
+- En base PostgreSQL aislada pasaron 89/89 pruebas de API, las suites ordinarias shared 1/1, API 13/13 y web 12/12, E2E simulado 1/1 y real 3/3. Typecheck, build, Prisma validate/generate/deploy/status aprobaron. Hito 1 y currículo pasaron regresión real.
+- Se corrigieron una colisión entre ejecuciones en el dato de prueba de cédula y un selector ambiguo del E2E. Tras la suite de bootstrap se reprovisionaron credenciales ficticias del demo antes de repetir E2E real. No se modificaron REQUIREMENTS.md, DATABASE.md ni PROJECT_MASTER.md; no hubo commit.
+
 ## 04/10/2026 — Diseño aprobado del Hito 2A (documentación)
 
 - Se documentó el checkpoint cerrado Student + Enrollment en API.md y la decisión STU-ENR-01 en DECISIONS.md, sin nuevos RF/RNF, código ni migraciones.

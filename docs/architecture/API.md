@@ -401,18 +401,18 @@ Los controles usan los permisos aprobados y el mecanismo de comprobación existe
 
 ## Contratos aprobados — Hito 2A: Student + Enrollment (04/10/2026)
 
-**Estado: diseño aprobado; implementación pendiente.** Se precisan RF-008, D-01 y D-02 sin modificar los 34 RF ni los 15 RNF. `Student` es identidad global independiente; `Enrollment` vincula Student, Course y AcademicYear. RF-034 recibe solo la base de identidad y matrícula, sin datos de módulos posteriores. No existen todavía estos modelos ni estas rutas en el `schema.prisma` adjunto; los contratos de esta sección no se anuncian como operativos.
+**Estado: implementado y validado el 05/10/2026.** Se precisan RF-008, D-01 y D-02 sin modificar los 34 RF ni los 15 RNF. `Student` es identidad global independiente; `Enrollment` vincula Student, Course y AcademicYear. RF-034 recibe solo la base de identidad y matrícula, sin datos de módulos posteriores.
 
 ### Permisos y contexto efectivo
 
-| Código propuesto | Semántica | Límite |
+| Código | Semántica | Límite |
 |---|---|---|
 | `student.read` | Leer datos básicos de identidad a través de matrícula autorizada. | No permite descubrir identidades o matrículas globales. |
 | `student.manage` | Crear identidad; corregir datos identificativos y cambiar activación. | Los cambios sobre Student existente exigen facultad sobre **todos** sus contextos institucionales actuales. |
 | `enrollment.read` | Leer nómina, matrícula e historial autorizado. | Filtrar por institución/curso realmente autorizados. |
 | `enrollment.manage` | Crear una matrícula en un curso autorizado. | No modifica ni finaliza una matrícula existente. |
 
-Estos cuatro códigos siguen la convención singular `recurso.acción` de `permission-catalog.ts`. **Aún no están implementados ni concedidos.** `manage` no implica `read`, el rol por sí solo no autoriza y la sincronización futura no debe concederlos automáticamente al demo Hito 1. El alta conjunta requiere `student.manage` y `enrollment.manage`. La selección/búsqueda de un estudiante ya visible para matricularlo requiere también ambos permisos de lectura. `RESOURCE_SET` sigue rechazado; se usan ámbitos `INSTITUTION` y `COURSE_SET` efectivos.
+Estos cuatro códigos siguen la convención singular `recurso.acción` de `permission-catalog.ts`. Están implementados y no se conceden automáticamente al demo Hito 1. `manage` no implica `read`, el rol por sí solo no autoriza. El alta conjunta requiere `student.manage` y `enrollment.manage`. La selección/búsqueda de un estudiante ya visible para matricularlo requiere también ambos permisos de lectura. `RESOURCE_SET` sigue rechazado; se usan ámbitos `INSTITUTION` y `COURSE_SET` efectivos.
 
 ### Convenciones de transporte, proyección y errores
 

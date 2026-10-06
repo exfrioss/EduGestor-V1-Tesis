@@ -55,6 +55,7 @@ model User {
   subjectsDisabled          Subject[]                  @relation("SubjectDisabledBy")
   curriculumMappingsCreated SubjectCurriculumMapping[] @relation("CurriculumMappingCreatedBy")
   curriculumMappingsUpdated SubjectCurriculumMapping[] @relation("CurriculumMappingUpdatedBy")
+  studentsDisabled         Student[]                  @relation("StudentDisabledBy")
   auditLogs                 AuditLog[]                 @relation("AuditActor")
 }
 
@@ -209,6 +210,7 @@ model AcademicYear {
 
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   courses     Course[]
+  enrollments Enrollment[]
 
   @@unique([institutionId, label])
   @@unique([id, institutionId])
@@ -270,6 +272,7 @@ model Course {
   disabledBy          User?                @relation("CourseDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
   scopeMemberships    ScopeCourse[]
   teachingAssignments TeachingAssignment[]
+  enrollments         Enrollment[]
 
   @@unique([institutionId, academicYearId, grade, section, shift])
   @@unique([id, institutionId])
@@ -300,6 +303,42 @@ model Subject {
   @@unique([id, institutionId])
   @@index([institutionId, isActive])
   @@index([disabledById])
+}
+
+model Student {
+  id                   String    @id @default(uuid()) @db.Uuid
+  givenNames           String    @db.Text
+  familyNames          String    @db.Text
+  nationalId           String?   @db.Text
+  nationalIdNormalized String?   @unique @db.Text
+  isActive             Boolean   @default(true)
+  disabledAt           DateTime? @db.Timestamptz(3)
+  disabledById         String?   @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(3)
+  rowVersion           Int       @default(1)
+
+  disabledBy  User?        @relation("StudentDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
+  enrollments Enrollment[]
+
+  @@index([familyNames, givenNames])
+  @@index([disabledById])
+}
+
+model Enrollment {
+  id             String   @id @default(uuid()) @db.Uuid
+  studentId      String   @db.Uuid
+  courseId       String   @db.Uuid
+  academicYearId String   @db.Uuid
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
+  course       Course       @relation(fields: [courseId, academicYearId], references: [id, academicYearId], onDelete: Restrict)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+
+  @@unique([studentId, courseId, academicYearId])
+  @@index([courseId, academicYearId])
+  @@index([studentId, academicYearId])
 }
 
 model PlanType {

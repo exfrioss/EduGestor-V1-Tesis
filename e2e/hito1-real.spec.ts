@@ -64,12 +64,12 @@ test('Hito 1 completo contra API y PostgreSQL reales', async ({ page }) => {
   await expect(page.getByText(HITO1_DEMO_DATA.shift).first()).toBeVisible();
 
   const access = await page.evaluate(
-    async ({ ownId, foreignId }) => {
-      const own = await fetch(`http://localhost:3000/api/v1/authorization/teaching-assignments/${ownId}/access`, { credentials: 'include' });
-      const foreign = await fetch(`http://localhost:3000/api/v1/authorization/teaching-assignments/${foreignId}/access`, { credentials: 'include' });
+    async ({ ownId, foreignId, apiUrl }) => {
+      const own = await fetch(`${apiUrl}/api/v1/authorization/teaching-assignments/${ownId}/access`, { credentials: 'include' });
+      const foreign = await fetch(`${apiUrl}/api/v1/authorization/teaching-assignments/${foreignId}/access`, { credentials: 'include' });
       return { own: own.status, foreign: foreign.status };
     },
-    { ownId: HITO1_DEMO_IDS.teacherOneAssignment, foreignId: HITO1_DEMO_IDS.teacherTwoAssignment },
+    { ownId: HITO1_DEMO_IDS.teacherOneAssignment, foreignId: HITO1_DEMO_IDS.teacherTwoAssignment, apiUrl: process.env.E2E_API_URL ?? 'http://localhost:3000' },
   );
   expect(access).toEqual({ own: 200, foreign: 403 });
 

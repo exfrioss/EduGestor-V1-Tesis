@@ -1,8 +1,8 @@
 # Pruebas técnicas y de persistencia
 
-## Matriz pendiente — Hito 2A Student + Enrollment (diseño aprobado 04/10/2026)
+## Matriz ejecutada — Hito 2A Student + Enrollment (05/10/2026)
 
-**Estado: pruebas previstas, ninguna ejecutada para Hito 2A.** No sumar estos casos a las cifras históricas de Hito 1 o currículo. Los identificadores `STU-*` son claves de pruebas, no nuevos RF/RNF. Ejecutar Vitest/Supertest con PostgreSQL desechable, RTL y Playwright real según corresponda; el frontend no sustituye comprobaciones de backend. API.md define los contratos y DECISIONS.md la decisión STU-ENR-01.
+**Estado: ejecutado en PostgreSQL desechable, Vitest/Supertest, RTL y Playwright real.** No sumar estos casos a las cifras históricas de Hito 1 o currículo. Los identificadores `STU-*` son claves de pruebas, no nuevos RF/RNF. API.md define los contratos y DECISIONS.md la decisión STU-ENR-01.
 
 | Caso | Nivel | Verificación y resultado esperado |
 |---|---|---|
@@ -36,6 +36,45 @@
 Antes de migrar, comprobar qué constraints SQL de Course–AcademicYear–Institution ya existen y probar el caso de institución cruzada. Verificar el esquema Prisma y la migración nueva Student + Enrollment, índices/UNIQUE/CHECK, relaciones y `ON DELETE RESTRICT`; no asumir que lo documentado ya está en base. Registrar resultados efectivamente ejecutados por grupo, junto con typecheck/build y suites ordinaria, DB y E2E. `RUN_DATABASE_TESTS=1` es necesario para afirmar cobertura PostgreSQL; no contabilizar pruebas omitidas como aprobadas.
 
 El cierre de Hito 2A **no** depende de pruebas para importación CSV/XLSX, consulta pública por cédula, tareas, banco, evaluaciones, calificaciones, asistencia, seguimiento, planificación, mallas o IA. RF-034 solo recibe identidad y matrícula; las demás fuentes se ensayarán en sus checkpoints correspondientes.
+
+### Ejecución Hito 2A del 05/10/2026
+
+Se creó la base desechable `edugestor_hito2a_final_20261005` para validar la migración final desde cero. `prisma validate` y `prisma generate` aprobaron; `migrate deploy` aplicó las seis migraciones en base vacía; `migrate status` confirmó esquema al día. Se comprobó en PostgreSQL que `Course_academic_year_institution_fkey` ya existía, que `Enrollment_course_year_fkey`, `Student_nationalId_pair_check` y `Student_active_state_check` quedaron instaladas y que se crearon los índices de Student/Enrollment. Se probó el rechazo de Course con año de otra institución y Enrollment con año incompatible.
+
+| Caso | Resultado ejecutado | Evidencia |
+|---|---|---|
+| STU-01 | Aprobado | Supertest + PostgreSQL: alta, UUID, año y auditoría. |
+| STU-02 | Aprobado | PostgreSQL: dos cédulas NULL sin colisión. |
+| STU-03 | Aprobado | Normalización determinista y ceros iniciales. |
+| STU-04 | Aprobado | Conflicto 409 de cédula sin fila nueva. |
+| STU-05 | Aprobado | Dos altas concurrentes: 201/409, una identidad. |
+| STU-06 | Aprobado | Corrección, incorporación/retiro de cédula y dos PATCH concurrentes con STALE_VERSION. |
+| STU-07 | Aprobado | Desactivar/reactivar, lectura histórica y bloqueo de nueva matrícula. |
+| STU-08 | Aprobado | Reutilización de Student visible en segundo curso. |
+| STU-09 | Aprobado | Matrícula duplicada 409. |
+| STU-10 | Aprobado | Matrículas concurrentes 201/409, una fila. |
+| STU-11 | Aprobado | Año discordante 422, FK compuesta y cruce Course/institución rechazado. |
+| STU-12 | Aprobado | Student, Course e Institution inactivos bloquean vínculo. |
+| STU-13 | Aprobado | IDs de B en rutas de A: 404 y sin contexto ajeno. |
+| STU-14 | Aprobado | Docente con permisos y asignación propia; asignación sin permisos rechazada. |
+| STU-15 | Aprobado | Curso ajeno y asignación finalizada rechazados. |
+| STU-16 | Aprobado | Student compartido: historia de A no muestra B. |
+| STU-17 | Aprobado | PATCH global denegado genéricamente; matrícula concurrente serializada. |
+| STU-18 | Aprobado | Búsqueda de cédula externa vacía y alta 409 opaco. |
+| STU-19 | Aprobado | Nómina paginada y cursor reautorizado después de revocación. |
+| STU-20 | Aprobado | Historial contextual y `courseId` obligatorio al docente. |
+| STU-21 | Aprobado | Sesión, CSRF, campos extra y error con requestId. |
+| STU-22 | Aprobado | Trigger impide UPDATE/DELETE de Enrollment. |
+| STU-23 | Aprobado | RTL y Playwright real: búsqueda, alta y reutilización. |
+| STU-24 | Aprobado | RTL y Playwright real: perfil contextual desde asignación. |
+| STU-25 | Aprobado | Playwright real Hito 1: recorrido y 200/403 docente. |
+| STU-26 | Aprobado | Playwright real currículo y pruebas de catálogo/demo. |
+
+Resultados exactos de suites: API con `RUN_DATABASE_TESTS=1`: **14 archivos, 89/89 pruebas aprobadas**. Suite ordinaria: shared **1/1**, API **13/13** con **76 DB omitidas por diseño**, web **12/12**. Typecheck de shared/API/web aprobado; build de API y web aprobado (Vite: 105 módulos). E2E simulado **1/1**; E2E real **3/3** contra React, Express y PostgreSQL aislados. El binario `npm` no estaba disponible en el host de ejecución; se invocaron los binarios locales equivalentes de Prisma, TypeScript, Vitest, Vite y Playwright.
+
+La sincronización del catálogo se ejecutó dos veces seguidas sobre la base final y devolvió **21 permisos** en ambas, sin concesiones nuevas al demo.
+
+Incidencias resueltas durante la ejecución: se eliminó una cédula fija en las pruebas que colisionaba entre corridas; se precisó el selector Playwright de “Matricular”; y se reprovisionaron las credenciales ficticias del demo después de la suite de bootstrap, que actualiza la cuenta demo en la misma base desechable. La repetición final de E2E real aprobó los tres recorridos.
 
 La infraestructura configura:
 
