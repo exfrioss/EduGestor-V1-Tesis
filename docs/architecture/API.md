@@ -267,7 +267,7 @@ No se alteraron contratos, códigos de respuesta ni rutas durante el checkpoint 
 
 ## Contratos aprobados — Administración curricular (25/09/2026)
 
-**Estado: especificación aprobada; implementación HTTP/UX pendiente.** Las secciones anteriores describen los checkpoints ya implementados. Esta sección no declara disponibles nuevas rutas, permisos ni pruebas ejecutadas. La persistencia de PlanType, AcademicArea, CurriculumDiscipline y SubjectCurriculumMapping ya fue implementada y probada según PROJECT_CONTEXT.md. No se implementan anticipadamente Curriculum, capacidades, contenidos, indicadores, planificación ni IA.
+**Estado: contratos aprobados e implementación HTTP/UX curricular validada el 25/09/2026.** Las pruebas y los límites efectivamente implementados constan en PROJECT_CONTEXT.md y TESTS.md. La persistencia de PlanType, AcademicArea, CurriculumDiscipline y SubjectCurriculumMapping está implementada; Curriculum, capacidades, contenidos, indicadores, planificación e IA siguen pendientes.
 
 ### Permisos y compatibilidad con el catálogo implementado
 
@@ -398,3 +398,61 @@ Estados de UX:
 El área desconocida muestra “Área académica aún no validada”, nunca una opción ficticia “Pendiente”. Se puede seleccionar una disciplina sin área dentro de su plan. El nombre institucional permanece en la navegación y el oficial en la referencia.
 
 Los controles usan los permisos aprobados y el mecanismo de comprobación existente; ocultarlos no reemplaza la autorización. No se ofrece crear áreas/disciplinas desde la administración institucional cotidiana. No se añade una pantalla cotidiana para cuenta técnica. Las materias sin correspondencia siguen apareciendo en listados/asignaciones; evitar consultas que las eliminen mediante joins obligatorios.
+
+## Contratos aprobados — Hito 2A: Student + Enrollment (04/10/2026)
+
+**Estado: implementado y validado el 05/10/2026.** Se precisan RF-008, D-01 y D-02 sin modificar los 34 RF ni los 15 RNF. `Student` es identidad global independiente; `Enrollment` vincula Student, Course y AcademicYear. RF-034 recibe solo la base de identidad y matrícula, sin datos de módulos posteriores.
+
+### Permisos y contexto efectivo
+
+| Código | Semántica | Límite |
+|---|---|---|
+| `student.read` | Leer datos básicos de identidad a través de matrícula autorizada. | No permite descubrir identidades o matrículas globales. |
+| `student.manage` | Crear identidad; corregir datos identificativos y cambiar activación. | Los cambios sobre Student existente exigen facultad sobre **todos** sus contextos institucionales actuales. |
+| `enrollment.read` | Leer nómina, matrícula e historial autorizado. | Filtrar por institución/curso realmente autorizados. |
+| `enrollment.manage` | Crear una matrícula en un curso autorizado. | No modifica ni finaliza una matrícula existente. |
+
+Estos cuatro códigos siguen la convención singular `recurso.acción` de `permission-catalog.ts`. Están implementados y no se conceden automáticamente al demo Hito 1. `manage` no implica `read`, el rol por sí solo no autoriza. El alta conjunta requiere `student.manage` y `enrollment.manage`. La selección/búsqueda de un estudiante ya visible para matricularlo requiere también ambos permisos de lectura. `RESOURCE_SET` sigue rechazado; se usan ámbitos `INSTITUTION` y `COURSE_SET` efectivos.
+
+### Convenciones de transporte, proyección y errores
+
+Base `/api/v1`; sesión vigente, `Cache-Control: no-store`, cookies con `credentials: include` y CSRF en cada mutación. UUID internos, paginación `limit` 1–100 (25 por defecto), cursor opaco unido a filtros/contexto y orden estable; reautorizar cada página. Zod rechaza campos desconocidos y no editables. El cliente no envía `nationalIdNormalized`, ámbito, actor, UUID de Student nuevo ni timestamps. El backend normaliza la cédula preservando ceros iniciales; vacío se representa mediante `nationalId: null`, nunca mediante valores ficticios. La respuesta de Student muestra `id`, `givenNames`, `familyNames`, `nationalId` cuando el contexto permite verlo, `isActive` y `rowVersion`, sin relaciones globales. Una proyección de Enrollment muestra `id`, `studentId`, `courseId`, `academicYearId`, `createdAt` y Student básico contextual. Las listas son `{ "data": [...], "nextCursor": null | "cursor" }` y los recursos `{ "data": {...} }`. Ninguna respuesta incluye el conteo global ni datos de instituciones no autorizadas.
+
+Errores: `{ "error": { "code": "...", "message": "...", "requestId": "uuid" } }`. Todos los endpoints privados pueden devolver `401 AUTHENTICATION_REQUIRED`, `403 PERMISSION_DENIED`, `404 RESOURCE_NOT_FOUND` o `400 VALIDATION_ERROR`; escrituras también `403 CSRF_TOKEN_INVALID`. Recursos inexistentes o no visibles se responden uniformemente con 404. `409 CONFLICT` cubre duplicidad de cédula/matrícula o contexto inactivo; `409 STALE_VERSION` cubre escritura con versión superada; `422 INVALID_REFERENCE` cubre año de matrícula incompatible con el curso. Tras reintentos transaccionales acotados, un conflicto concurrente no resuelto usa `409 CONCURRENT_MODIFICATION`. Estas rutas nuevas conservan los contratos HTTP existentes de Hito 1 y currículo.
+
+**Dos prohibiciones contractuales de exposición:** si la cédula normalizada corresponde a Student fuera del ámbito visible, `POST` devuelve `409 CONFLICT` con mensaje genérico, sin `studentId`, institución ni matrícula; no crea duplicado, fusión o reclamación automática. Si un cambio global de Student exige permisos sobre contextos que el actor no posee, se deniega con `403 PERMISSION_DENIED` genérico, sin identificar los otros contextos, instituciones ni matrículas. Búsquedas sin coincidencias visibles no distinguen entre inexistencia y existencia fuera del ámbito.
+
+### Rutas mínimas
+
+En la tabla, `I` es la institución real, `C` el curso perteneciente a ella, `S` el estudiante y `E` la matrícula. El backend comprueba las relaciones reales en PostgreSQL; parámetros de ruta y cuerpo nunca constituyen por sí mismos prueba de ámbito. Para un docente, toda lectura requiere también `TeachingAssignment` propia vigente del curso real y vínculo docente/institución operativos.
+
+| Método y ruta | Permiso y scope | Request | Response y estado | Errores particulares / concurrencia |
+|---|---|---|---|---|
+| `POST /api/v1/institutions/:I/courses/:C/students` | `student.manage` + `enrollment.manage` efectivos en C | `{ givenNames, familyNames, nationalId?: string \| null, academicYearId }` | `201 {data:{student,enrollment}}`; crea Student y primera Enrollment atómicamente | 409 cédula duplicada, C/I inactivos; 422 año incompatible. Índice único de cédula y transacción resuelven carreras. |
+| `GET /api/v1/institutions/:I/students` | `student.read` + `enrollment.read` por cada contexto devuelto | `q?` (nombre/cédula), `courseId?`, `limit?`, `cursor?`; `courseId` obligatorio para acceso docente o de curso | 200 lista de identidades con **solo** contexto autorizado | Curso ajeno 404; ningún resultado global ni indicador de otras matrículas. |
+| `GET /api/v1/institutions/:I/courses/:C/students` | Los dos permisos de lectura sobre C | `limit?`, `cursor?` | 200 nómina: Student básico, `isActive` y Enrollment del curso/año | C ajeno 404; la paginación no amplía ámbitos. |
+| `GET /api/v1/institutions/:I/students/:S` | Los dos permisos de lectura; matrícula visible en I | `courseId?`, obligatorio para docente/ámbito de curso | 200 Student básico y matrícula de ese contexto, sin historia global | Sin matrícula visible 404, aunque exista S en otra institución. |
+| `PATCH /api/v1/institutions/:I/students/:S` | `student.manage` efectivo en **todos** los contextos existentes de S | `{ givenNames?, familyNames?, nationalId?: string \| null, expectedVersion }` | 200 Student corregido; mismo UUID, nueva `rowVersion` | 403 genérico por contexto global insuficiente; 409 duplicado o `STALE_VERSION`; no se admite cambiar matrícula/UUID. |
+| `PATCH /api/v1/institutions/:I/students/:S/activation` | `student.manage` efectivo en todos los contextos de S | `{ isActive, expectedVersion }` | 200 Student activo/inactivo actualizado sin borrar vínculos | 403 genérico por ámbito incompleto; 409 `STALE_VERSION`; auditar desactivación/reactivación. |
+| `POST /api/v1/institutions/:I/courses/:C/enrollments` | `enrollment.manage` en C; Student existente previamente visible con `student.read` + `enrollment.read` en algún contexto permitido | `{ studentId, academicYearId }` | `201 {data:{enrollment}}`; conserva Student y sus otras matrículas | 404 si Student no es visible; 409 matrícula duplicada o Student/C/I inactivo; 422 año incompatible. UNIQUE y transacción resuelven carreras. |
+| `GET /api/v1/institutions/:I/enrollments/:E` | `enrollment.read` + `student.read` en el curso **real** de E | Sin body | 200 matrícula e identidad básica contextual | E inexistente/ajena 404. |
+| `GET /api/v1/institutions/:I/students/:S/enrollments` | Ambos permisos de lectura por cada matrícula retornada | `courseId?`, `limit?`, `cursor?`; `courseId` obligatorio para docente/ámbito de curso | 200 historial **filtrado al ámbito**, sin conteo global | S sin matrícula visible 404; no se filtra otra institución por respuesta, cursor ni conteo. |
+
+`academicYearId` en los POST se contrasta con `Course.academicYearId`; no permite escoger un año distinto. Crear la primera identidad y matrícula dentro de una única transacción evita un Student sin contexto accesible, aunque las entidades sigan separadas. No hay endpoint ordinario para eliminar, trasladar, finalizar ni reasignar una matrícula: `DATABASE.md` no define estado o `endedAt` para Enrollment.
+
+### Autorización, integridad, concurrencia e historia
+
+1. Resolver en servidor `Enrollment → Course → AcademicYear/Institution` y comprobar coherencia de IDs; una ruta con institución ajena o un UUID válido externo no elude el scope. Permiso y ámbito proceden de la **misma concesión efectiva**. Lectura docente exige docente activo, vínculo institucional y alguna `TeachingAssignment` propia vigente en ese curso; una asignación finalizada o de materia/curso ajeno no habilita consulta.
+2. Student es global, pero cada lectura se alcanza por matrículas visibles. Un administrador de A que comparte Student con B solo ve las matrículas autorizadas de A. Para corregir identidad o activación global, comprobar en la transacción que `student.manage` cubra **cada** contexto institucional existente; si falta alguno, denegar genéricamente. La comprobación y la escritura deben bloquear/serializar el Student para impedir que una matrícula concurrente cambie ese conjunto entre autorización y modificación.
+3. Antes de crear, buscar identidades **visibles**. Si una cédula ya existe solo fuera del ámbito, la unicidad global impide duplicado y la respuesta es genérica. Reutilizar ese UUID entre instituciones requiere un actor expresamente autorizado para los contextos necesarios o intervención técnica excepcional auditada, sin nuevo endpoint ni atribución automática de permisos. Sin cédula no se garantiza deduplicación global por nombre; no fusionar automáticamente.
+4. `nationalId` y `nationalIdNormalized` son ambos nulos o ambos informados; el segundo es único cuando existe, con múltiples NULL admitidos. `UNIQUE(studentId, courseId, academicYearId)` impide segunda matrícula idéntica; FK compuesta `(courseId, academicYearId)` impide año discordante. Verificar en la migración la integridad Course–AcademicYear–Institution que el esquema Prisma adjunto no expresa como FK compuesta.
+5. Validar Student, Course e Institution activos para nuevas matrículas. Desactivar Student conserva historia consultable, no desactiva en cascada Enrollment y bloquea nuevos vínculos. Reactivar conserva UUID y no concede permisos. No borrar físicamente ni actualizar `studentId`, `courseId` o `academicYearId` de matrículas históricas mediante estas rutas.
+6. Altas, correcciones, activación y matrícula, con AuditLog filtrado, son atómicas. Índices PostgreSQL deciden unicidad también ante peticiones concurrentes; controlar `rowVersion` en PATCH y acotar reintentos transaccionales. No registrar en errores o auditoría datos privados de otros contextos. La consulta de historia conserva la paginación contextual y no revela matrículas ocultas.
+
+### UX del checkpoint y exclusiones
+
+Se conserva **Inicio → Institución → Curso → Materia → espacio de trabajo** y se ofrece además **Institución → Curso → Estudiantes** para consultar la nómina sin entrar en una materia. **Materia → Perfiles de Alumnos** reutiliza Student + Enrollment y la asignación docente vigente; presenta únicamente identidad y matrícula contextual mientras no existan módulos fuente del perfil integral. Mostrar estudiante inactivo y permitir consulta histórica autorizada; impedir seleccionarlo para nueva matrícula.
+
+La acción **Agregar/matricular** busca primero estudiantes visibles, ofrece seleccionar uno o registrar uno nuevo con cédula opcional, confirma curso y año real y explica conflictos sin exponer otra institución. Los botones dependen de permisos efectivos; ocultarlos no sustituye controles del backend. Mantener la etiqueta **Conducta**, sin mostrar información de ese módulo en 2A.
+
+Quedan expresamente fuera: tareas, banco de actividades, evaluaciones, calificaciones, puntos fuera de escala, asistencia, anecdótico, conducta, informes grupales, consulta pública por cédula, importación CSV/XLSX de RF-022, planificación, mallas curriculares, IA y perfil integral RF-034 completo. Los módulos siguientes requieren checkpoints propios; no se fabrican secciones académicas vacías como si fueran datos.

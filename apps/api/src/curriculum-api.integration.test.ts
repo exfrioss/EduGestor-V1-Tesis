@@ -127,8 +127,8 @@ describeDatabase('API curricular y autorización con PostgreSQL real', () => {
   afterAll(async () => client.$disconnect());
 
   it('sincroniza los 17 códigos sin conceder los cuatro nuevos al dataset Hito 1', async () => {
-    expect(PERMISSION_CATALOG).toHaveLength(17);
-    expect(await client.permission.count({ where: { code: { in: PERMISSION_CATALOG.map(({ code }) => code) } } })).toBe(17);
+    expect(PERMISSION_CATALOG).toHaveLength(21);
+    expect(await client.permission.count({ where: { code: { in: PERMISSION_CATALOG.map(({ code }) => code) } } })).toBe(21);
     const demoGrants = await client.roleAssignmentPermission.count({
       where: {
         assignment: { role: { code: 'HITO1_DEMO_INSTITUTION_ADMIN' } },

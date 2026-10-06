@@ -1,5 +1,24 @@
 # Changelog
 
+## 05/10/2026 — Hito 2A Student + Enrollment implementado
+
+- Se añadió `Student` global y `Enrollment` histórico contextual con migración restrictiva, índices, CHECK de cédula/activación, FK compuesta y bloqueo de cambios destructivos de matrícula. Se verificó que `Course_academic_year_institution_fkey` ya existía.
+- El catálogo pasó de 17 a 21 permisos sin ampliar las concesiones demo. Se implementaron las nueve rutas de API.md con autorización contextual, bloqueo de Student para cambios globales y nuevas matrículas, control de versión, CSRF y auditoría transaccional.
+- La UI añadió Curso → Estudiantes y Materia → Perfiles de Alumnos con identidad y matrícula autorizadas, búsqueda, cédula opcional, reutilización visible e indicador de inactividad.
+- En base PostgreSQL aislada pasaron 89/89 pruebas de API, las suites ordinarias shared 1/1, API 13/13 y web 12/12, E2E simulado 1/1 y real 3/3. Typecheck, build, Prisma validate/generate/deploy/status aprobaron. Hito 1 y currículo pasaron regresión real.
+- Se corrigieron una colisión entre ejecuciones en el dato de prueba de cédula y un selector ambiguo del E2E. Tras la suite de bootstrap se reprovisionaron credenciales ficticias del demo antes de repetir E2E real. No se modificaron REQUIREMENTS.md, DATABASE.md ni PROJECT_MASTER.md; no hubo commit.
+
+## 04/10/2026 — Diseño aprobado del Hito 2A (documentación)
+
+- Se documentó el checkpoint cerrado Student + Enrollment en API.md y la decisión STU-ENR-01 en DECISIONS.md, sin nuevos RF/RNF, código ni migraciones.
+- Se definieron para implementación futura `student.read`, `student.manage`, `enrollment.read` y `enrollment.manage` sin concesión automática; la lectura requiere matrícula visible y, para docentes, TeachingAssignment propia vigente.
+- Se aprobaron rutas privadas de alta conjunta, búsqueda contextual, nómina, detalle Student/Enrollment, historial autorizado, corrección identificativa y activación, además de alta de otra matrícula con identidad visible. No hay rutas para eliminación, finalización o traslado de Enrollment.
+- Se fijó denegación genérica cuando falte permiso para un cambio global de Student, sin enumerar otras instituciones/matrículas; cédula ya registrada fuera del ámbito produce `409 CONFLICT` genérico, sin exponer UUID/contexto ni crear duplicado o fusión automática.
+- Se especificaron cédula nullable normalizada única, matrícula triple única, contexto de año compatible, `rowVersion`, transacciones, auditoría, desactivación sin pérdida histórica y pruebas de concurrencia e aislamiento.
+- UX aprobada: Institución → Curso → Estudiantes y Materia → Perfiles de Alumnos sobre las mismas entidades; solo identidad/matrícula hasta contar con fuentes de RF-034. Importación CSV/XLSX y demás módulos académicos/pedagógicos quedan fuera de 2A.
+- La comparación con `schema.prisma` adjunto confirma que Student/Enrollment requieren migración posterior; debe revisarse primero la integridad Course–AcademicYear–Institution en las migraciones SQL ya aplicadas. TESTS.md registra pruebas **pendientes**, no resultados ejecutados.
+- Se actualizó el contexto de continuidad usando como base los documentos más recientes del paquete adjunto, que ya registran implementación y 77/77 pruebas de la API curricular. REQUIREMENTS.md, DATABASE.md y PROJECT_MASTER.md no fueron modificados.
+
 ## 25/09/2026 — API, autorización y UX curricular
 
 - Se incorporaron los cuatro permisos curriculares aprobados; el catálogo idempotente contiene 17 códigos y el bootstrap demo conserva exactamente los 13 del Hito 1.

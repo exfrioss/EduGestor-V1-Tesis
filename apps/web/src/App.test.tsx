@@ -107,3 +107,61 @@ describe('frontend Hito 1', () => {
     expect(screen.getByText('Sustituir')).toBeInTheDocument();
   });
 });
+
+describe('Hito 2A — estudiantes', () => {
+  const courseId = '99999999-9999-4999-8999-999999999999';
+  const studentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const course = { id: courseId, institutionId, academicYearId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', grade: '1.º', section: 'A', shift: 'Mañana', academicYear: { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', label: '2026' } };
+  const student = { id: studentId, givenNames: 'Ana', familyNames: 'López', nationalId: null, isActive: false, rowVersion: 1 };
+  const enrollment = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', studentId, courseId, academicYearId: course.academicYearId, createdAt: '2026-02-01T00:00:00Z', student };
+
+  it('STU-23: muestra nómina, búsqueda, cédula opcional, inactividad y conflicto opaco', async () => {
+    window.history.replaceState({}, '', `/admin/institutions/${institutionId}/courses/${courseId}/students`);
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = pathOf(input); calls.push(path);
+      if (path.endsWith('/auth/session')) return json(session());
+      if (path.endsWith('/auth/csrf')) return json({ csrfToken: 'csrf-stu' });
+      if (path === '/api/v1/institutions') return json({ institutions: [institution] });
+      if (path === `/api/v1/institutions/${institutionId}`) return json({ institution });
+      if (path === `/api/v1/courses/${courseId}`) return json({ course });
+      if (path.includes('/authorization/check/')) return json({ authorized: true });
+      if (path.includes('/courses/') && path.endsWith('/students') && init?.method === 'POST') return json({ error: { code: 'CONFLICT', message: 'Conflicto', requestId: 'stu-test' } }, 409);
+      if (path.includes('/courses/') && path.includes('/students')) return json({ data: [enrollment], nextCursor: null });
+      if (path.includes('/students?q=')) return json({ data: [], nextCursor: null });
+      return json({ data: [], nextCursor: null });
+    }));
+    render(<App />);
+    const user = userEvent.setup();
+    expect(await screen.findByText('López, Ana')).toBeInTheDocument();
+    expect(screen.getByText('Inactivo')).toBeInTheDocument();
+    await user.type(screen.getByPlaceholderText('Buscar estudiante visible'), 'inexistente');
+    expect(await screen.findByText('No hay coincidencias visibles.')).toBeInTheDocument();
+    expect(calls.some(path => path.includes('q=inexistente'))).toBe(true);
+    await user.type(screen.getByLabelText('Nombres'), 'Nueva');
+    await user.type(screen.getByLabelText('Apellidos'), 'Persona');
+    await user.click(screen.getByRole('button', { name: 'Registrar y matricular' }));
+    expect(await screen.findByText(/existe un conflicto con los datos registrados/i)).toBeInTheDocument();
+  });
+
+  it('STU-24: perfiles desde materia presentan solo identidad y matrícula contextual', async () => {
+    const assignmentId = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    window.history.replaceState({}, '', `/teacher/institutions/${institutionId}/courses/${courseId}/assignments/${assignmentId}/students`);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path.endsWith('/auth/session')) return json(session(true));
+      if (path === '/api/v1/institutions') return json({ institutions: [] });
+      if (path === `/api/v1/courses/${courseId}`) return json({ course });
+      if (path.includes('/courses/') && path.endsWith('/students')) return json({ data: [enrollment], nextCursor: null });
+      if (path.includes(`/students/${studentId}`)) return json({ data: { student, enrollments: [enrollment] } });
+      return json({});
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Perfiles de Alumnos' })).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: 'Ver perfil' }));
+    expect(await screen.findByText('Cédula: No informada')).toBeInTheDocument();
+    expect(screen.getByText(/Matrículas visibles:/)).toBeInTheDocument();
+    expect(screen.queryByText(/calificaciones|asistencia|conducta|tareas/i)).not.toBeInTheDocument();
+  });
+});

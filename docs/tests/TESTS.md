@@ -1,5 +1,81 @@
 # Pruebas técnicas y de persistencia
 
+## Matriz ejecutada — Hito 2A Student + Enrollment (05/10/2026)
+
+**Estado: ejecutado en PostgreSQL desechable, Vitest/Supertest, RTL y Playwright real.** No sumar estos casos a las cifras históricas de Hito 1 o currículo. Los identificadores `STU-*` son claves de pruebas, no nuevos RF/RNF. API.md define los contratos y DECISIONS.md la decisión STU-ENR-01.
+
+| Caso | Nivel | Verificación y resultado esperado |
+|---|---|---|
+| STU-01 | DB/API | Alta con cédula crea Student UUID y Enrollment UUID distintos, año del curso y respuesta contextual; auditoría en la misma transacción. |
+| STU-02 | DB/API | Alta sin cédula guarda `nationalId` y `nationalIdNormalized` en NULL; dos estudiantes sin cédula no colisionan por ese índice. |
+| STU-03 | Unit/DB | Normalización determinista: formatos equivalentes producen la misma clave y se conservan ceros iniciales; nunca generar valor ficticio. |
+| STU-04 | DB/API | Segunda cédula normalizada devuelve 409 CONFLICT y ninguna fila nueva, sin exponer otra identidad. |
+| STU-05 | Concurrencia DB/API | Dos altas simultáneas de la misma cédula dejan una sola identidad y primera matrícula; la otra petición recibe conflicto genérico; ninguna auditoría de éxito huérfana. |
+| STU-06 | DB/API | Corregir nombre, incorporar/quitar/corregir cédula con `expectedVersion` conserva Student UUID y las matrículas; versión vieja: 409 STALE_VERSION. |
+| STU-07 | DB/API | Desactivar/reactivar Student preserva UUID y matrículas; inactivo es legible históricamente con autorización y no admite nueva matrícula; reactivar no concede permisos ni cambia estados de otras entidades. |
+| STU-08 | DB/API | Matrícula válida de identidad ya visible reutiliza Student UUID y enlaza Course + AcademicYear correctos. |
+| STU-09 | DB/API | Misma terna Student/Course/AcademicYear dos veces devuelve 409 y deja una sola fila. |
+| STU-10 | Concurrencia DB/API | Dos matrículas idénticas simultáneas dejan una fila, una creación y un conflicto; rollback completo en la perdedora. |
+| STU-11 | DB/API | academicYearId diferente del de Course devuelve 422 INVALID_REFERENCE; verificar FK compuesta y ausencia de fila, incluyendo una solicitud que omita controles frontend. |
+| STU-12 | DB/API | Student, Course o Institution inactivo impide vínculo nuevo; desactivación no reescribe matrículas existentes. |
+| STU-13 | Seguridad HTTP | Administrador de A intenta usar IDs de Student/Enrollment/Course de B en lista, detalle, historial, alta o PATCH: ninguna matrícula ni contexto ajeno se devuelve; 404 uniforme cuando el recurso no es visible. |
+| STU-14 | Seguridad HTTP | Docente con `student.read` + `enrollment.read` efectivos y TeachingAssignment propia vigente ve únicamente matriculados de su curso. Rol docente o asignación sin permisos no basta. |
+| STU-15 | Seguridad HTTP | Docente consulta curso ajeno o asignación ajena/finalizada: denegado; variar institutionId/courseId de ruta y filtros no amplía el acceso. |
+| STU-16 | Seguridad HTTP | Student con matrículas en A y B conserva una identidad; admin de A ve datos básicos y solo filas de A. B no aparece en historia, búsquedas, nómina, cursor, totales ni errores. |
+| STU-17 | Seguridad/concurrencia | PATCH global de Student compartido sin `student.manage` sobre todos los contextos: 403 PERMISSION_DENIED genérico sin identificar instituciones, cursos, matrículas ni cantidad. Matrícula concurrente no puede invalidar comprobación de autorización. |
+| STU-18 | Seguridad HTTP | La cédula ya existe solo fuera del ámbito visible: búsqueda devuelve vacío indistinguible de inexistencia; alta devuelve 409 CONFLICT genérico sin `studentId`/institución/matrícula; no hay duplicado, fusión ni reclamación automática. |
+| STU-19 | API | Listado de curso muestra cada Enrollment con Student correcto, año y `isActive`; paginación/cursor estables, reautorizados y sin fugas. |
+| STU-20 | API | Historial devuelve solo matrículas autorizadas; contexto de curso obligatorio para acceso limitado/docente; ID global de Student no concede acceso a otros contextos. |
+| STU-21 | Seguridad/API | 401 sin sesión, 403 por CSRF/permisos y 400 por payload inválido/claves desconocidas; cuerpos preservan `error.code`, `error.message`, `error.requestId`, sin trazas ni datos ajenos. |
+| STU-22 | Integridad DB | FK restrictivas y ausencia de endpoints destructivos impiden borrar o reasignar historia; una corrección de nombre/cédula no modifica Student/Enrollment UUID ni claves de contexto. |
+| STU-23 | RTL | Curso → Estudiantes: búsqueda previa, alta o selección, cédula opcional, año/curso confirmados, estudiante inactivo y conflicto sin información externa; acciones según permisos. |
+| STU-24 | RTL/E2E real | Materia → Perfiles de Alumnos usa la misma identidad/matrícula contextual y TeachingAssignment vigente; no inventa tareas, notas, asistencia ni perfil integral. |
+| STU-25 | Regresión real | Recorrido Hito 1 completo: administrador → institución → docente → curso → materia → asignación → login docente → consulta propia 200/ajena denegada. |
+| STU-26 | Regresión real | Catálogo/correspondencias curriculares, aislamiento y referencia opcional de Subject; 17 permisos existentes conservados, nuevos cuatro no concedidos al demo automáticamente. |
+
+Antes de migrar, comprobar qué constraints SQL de Course–AcademicYear–Institution ya existen y probar el caso de institución cruzada. Verificar el esquema Prisma y la migración nueva Student + Enrollment, índices/UNIQUE/CHECK, relaciones y `ON DELETE RESTRICT`; no asumir que lo documentado ya está en base. Registrar resultados efectivamente ejecutados por grupo, junto con typecheck/build y suites ordinaria, DB y E2E. `RUN_DATABASE_TESTS=1` es necesario para afirmar cobertura PostgreSQL; no contabilizar pruebas omitidas como aprobadas.
+
+El cierre de Hito 2A **no** depende de pruebas para importación CSV/XLSX, consulta pública por cédula, tareas, banco, evaluaciones, calificaciones, asistencia, seguimiento, planificación, mallas o IA. RF-034 solo recibe identidad y matrícula; las demás fuentes se ensayarán en sus checkpoints correspondientes.
+
+### Ejecución Hito 2A del 05/10/2026
+
+Se creó la base desechable `edugestor_hito2a_final_20261005` para validar la migración final desde cero. `prisma validate` y `prisma generate` aprobaron; `migrate deploy` aplicó las seis migraciones en base vacía; `migrate status` confirmó esquema al día. Se comprobó en PostgreSQL que `Course_academic_year_institution_fkey` ya existía, que `Enrollment_course_year_fkey`, `Student_nationalId_pair_check` y `Student_active_state_check` quedaron instaladas y que se crearon los índices de Student/Enrollment. Se probó el rechazo de Course con año de otra institución y Enrollment con año incompatible.
+
+| Caso | Resultado ejecutado | Evidencia |
+|---|---|---|
+| STU-01 | Aprobado | Supertest + PostgreSQL: alta, UUID, año y auditoría. |
+| STU-02 | Aprobado | PostgreSQL: dos cédulas NULL sin colisión. |
+| STU-03 | Aprobado | Normalización determinista y ceros iniciales. |
+| STU-04 | Aprobado | Conflicto 409 de cédula sin fila nueva. |
+| STU-05 | Aprobado | Dos altas concurrentes: 201/409, una identidad. |
+| STU-06 | Aprobado | Corrección, incorporación/retiro de cédula y dos PATCH concurrentes con STALE_VERSION. |
+| STU-07 | Aprobado | Desactivar/reactivar, lectura histórica y bloqueo de nueva matrícula. |
+| STU-08 | Aprobado | Reutilización de Student visible en segundo curso. |
+| STU-09 | Aprobado | Matrícula duplicada 409. |
+| STU-10 | Aprobado | Matrículas concurrentes 201/409, una fila. |
+| STU-11 | Aprobado | Año discordante 422, FK compuesta y cruce Course/institución rechazado. |
+| STU-12 | Aprobado | Student, Course e Institution inactivos bloquean vínculo. |
+| STU-13 | Aprobado | IDs de B en rutas de A: 404 y sin contexto ajeno. |
+| STU-14 | Aprobado | Docente con permisos y asignación propia; asignación sin permisos rechazada. |
+| STU-15 | Aprobado | Curso ajeno y asignación finalizada rechazados. |
+| STU-16 | Aprobado | Student compartido: historia de A no muestra B. |
+| STU-17 | Aprobado | PATCH global denegado genéricamente; matrícula concurrente serializada. |
+| STU-18 | Aprobado | Búsqueda de cédula externa vacía y alta 409 opaco. |
+| STU-19 | Aprobado | Nómina paginada y cursor reautorizado después de revocación. |
+| STU-20 | Aprobado | Historial contextual y `courseId` obligatorio al docente. |
+| STU-21 | Aprobado | Sesión, CSRF, campos extra y error con requestId. |
+| STU-22 | Aprobado | Trigger impide UPDATE/DELETE de Enrollment. |
+| STU-23 | Aprobado | RTL y Playwright real: búsqueda, alta y reutilización. |
+| STU-24 | Aprobado | RTL y Playwright real: perfil contextual desde asignación. |
+| STU-25 | Aprobado | Playwright real Hito 1: recorrido y 200/403 docente. |
+| STU-26 | Aprobado | Playwright real currículo y pruebas de catálogo/demo. |
+
+Resultados exactos de suites: API con `RUN_DATABASE_TESTS=1`: **14 archivos, 89/89 pruebas aprobadas**. Suite ordinaria: shared **1/1**, API **13/13** con **76 DB omitidas por diseño**, web **12/12**. Typecheck de shared/API/web aprobado; build de API y web aprobado (Vite: 105 módulos). E2E simulado **1/1**; E2E real **3/3** contra React, Express y PostgreSQL aislados. El binario `npm` no estaba disponible en el host de ejecución; se invocaron los binarios locales equivalentes de Prisma, TypeScript, Vitest, Vite y Playwright.
+
+La sincronización del catálogo se ejecutó dos veces seguidas sobre la base final y devolvió **21 permisos** en ambas, sin concesiones nuevas al demo.
+
+Incidencias resueltas durante la ejecución: se eliminó una cédula fija en las pruebas que colisionaba entre corridas; se precisó el selector Playwright de “Matricular”; y se reprovisionaron las credenciales ficticias del demo después de la suite de bootstrap, que actualiza la cuenta demo en la misma base desechable. La repetición final de E2E real aprobó los tres recorridos.
+
 La infraestructura configura:
 
 - Vitest para los tres workspaces.
