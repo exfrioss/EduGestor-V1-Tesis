@@ -1,8 +1,19 @@
 # EduGestor V1.0 — Contexto de continuidad
 
+## CHECKPOINT DOCUMENTAL APROBADO — Hito 2B; próximo paso Codex 2B-1
+
+**Fecha:** 06/10/2026. **Estado:** API/autorización/UX/reglas de cálculo y pruebas diseñadas; **no** se han implementado Hito 2B, sus migraciones o sus pruebas. Hito 1, infraestructura curricular y Hito 2A siguen implementados y aceptados. Se conserva la línea base de 34 RF, 15 RNF y D-01 a D-07 resueltas.
+
+- Decisión [ACAD-2B-01](../architecture/DECISIONS.md), contratos [API.md](../architecture/API.md) y matriz prevista [TESTS.md](../tests/TESTS.md) B-01 a B-27. `DATABASE.md` ya diseña ActivityBankItem, Task, Assessment, AssessmentResult, GradingScale y `TeachingAssignment.gradingScaleId`; el `schema.prisma` adjunto aún no los implementa. No asumir que documentación equivale a implementación.
+- Permisos **aprobados para agregar, aún no instalados**: `activity-bank.read/manage`, `task.read/manage`, `assessment.read/manage`, `assessment-result.read/manage`, `grading-scale.read/manage`; ocho en 2B-1 y dos en 2B-2. Sin grants por rol o demo. Banco privado por docente; TeachingAssignment propia/vigente y scope/permisos efectivos para operaciones docentes.
+- **2B-1:** cuatro modelos y migración, ocho permisos, banco privado, tareas, evaluaciones independientes o vinculadas, resultados individuales únicos, reutilización como copia, autorización contextual, cálculo Decimal de Proceso sobre Enrollment real. Mostrar pendientes y porcentajes parciales; `formalGrade = null` siempre. No habilitar cambio de máximo con resultados; tampoco simular escala/versiones/tokens.
+- **2B-2:** GradingScale y FK nullable `TeachingAssignment.gradingScaleId`; JSON v1 `PERCENTAGE_BANDS`, redondeo `NONE`/`DECIMAL_PLACES`, versiones inmutables, nota formal solo con D>0, ningún pendiente y configuración válida. Preview y confirmación de cambio de máximo y escala mediante token HMAC-SHA-256 de cinco minutos con actor/sesión/versiones/cambio/contextDigest; auditoría y transacción sin mutar puntos obtenidos.
+- **Siguiente checkpoint exacto para Codex:** implementar **Hito 2B-1 solamente** siguiendo la sección 2B-1 de API.md y B-01 a B-27 etiquetados 2B-1 en TESTS.md. Primero migrar cuatro modelos con FK, CHECK/UNIQUE y `rowVersion`, luego catálogo de ocho permisos sin concesiones demo, servicios transaccionales de tarea/evaluación/resultado y autorización, rutas, UI Tareas y Evaluaciones/Proceso sin nota, pruebas DB/API/RTL/E2E y regresión real Hito 1/currículo/2A. Comparar esquema actual antes de migrar. Registrar resultados ejecutados por separado; no declarar 2B-2 completo.
+- Fuera de todo Hito 2B: asistencia, anecdótico, Conducta, informe grupal, consulta pública, CSV/XLSX, planificación, mallas completas, IA y perfil integral RF-034. `REQUIREMENTS.md`, `DATABASE.md` y `PROJECT_MASTER.md` permanecen sin cambios.
+
 ## CHECKPOINT COMPLETADO — Hito 2A: Student + Enrollment
 
-**Fecha:** 05/10/2026. **Rama:** `feat/hito2-students-enrollments`. **Estado:** implementado y validado sin commit.
+**Fecha:** 05/10/2026. **Rama histórica:** `feat/hito2-students-enrollments`. **Estado:** implementado y validado; commit `e989ab5`, fusionado a `main` mediante merge estable `bf6fdaa`, respaldado en GitHub y etiquetado `hito2a-accepted-2026-10-06`.
 
 - `Student` global y `Enrollment` contextual se incorporaron al esquema y a la migración `20261005120000_student_enrollment`. La migración inicial ya contenía la FK compuesta `Course_academic_year_institution_fkey`; se verificó en PostgreSQL y no se duplicó. La nueva FK compuesta de Enrollment, los CHECK de cédula y activación, índices únicos y restricción de inmutabilidad se aplicaron en una base desechable.
 - El catálogo tiene 21 permisos: los 17 previos más `student.read/manage` y `enrollment.read/manage`. El demo Hito 1 no recibe los cuatro nuevos. Las nueve rutas privadas aprobadas usan sesión, CSRF en mutaciones, proyecciones contextuales, autorización efectiva y respuestas sin datos ajenos.

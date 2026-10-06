@@ -145,7 +145,7 @@ Requiere protección CSRF y `administration.revoke` dentro de un ámbito que con
 
 ### Catálogo de permisos
 
-El catálogo contiene 17 códigos: los 13 permisos del Hito 1 más los cuatro permisos curriculares documentados en esta sección. Se sincroniza idempotentemente con:
+En el checkpoint curricular, el catálogo contenía 17 códigos: los 13 permisos del Hito 1 más los cuatro permisos curriculares documentados en esta sección. Tras Hito 2A contiene 21; los permisos de Hito 2B aquí aprobados se incorporarán en sus checkpoints técnicos. Se sincroniza idempotentemente con:
 
 ```bash
 npm run bootstrap:authorization-catalog -w @edugestor/api
@@ -456,3 +456,173 @@ Se conserva **Inicio → Institución → Curso → Materia → espacio de traba
 La acción **Agregar/matricular** busca primero estudiantes visibles, ofrece seleccionar uno o registrar uno nuevo con cédula opcional, confirma curso y año real y explica conflictos sin exponer otra institución. Los botones dependen de permisos efectivos; ocultarlos no sustituye controles del backend. Mantener la etiqueta **Conducta**, sin mostrar información de ese módulo en 2A.
 
 Quedan expresamente fuera: tareas, banco de actividades, evaluaciones, calificaciones, puntos fuera de escala, asistencia, anecdótico, conducta, informes grupales, consulta pública por cédula, importación CSV/XLSX de RF-022, planificación, mallas curriculares, IA y perfil integral RF-034 completo. Los módulos siguientes requieren checkpoints propios; no se fabrican secciones académicas vacías como si fueran datos.
+
+## Contratos aprobados — Hito 2B: tareas, evaluaciones y Proceso (06/10/2026)
+
+**Estado: diseño aprobado, pendiente de implementación y pruebas.** Concreta RF-009 a RF-014 y D-01/D-03 sin crear RF/RNF. Se implementa en dos checkpoints técnicos: **2B-1** (banco, tareas, evaluaciones, resultados, permisos y Proceso sin nota formal) y **2B-2** (escala, definiciones JSON, conversión/redondeo, cambios de máximo y escala con preview/confirmación y nota formal). `DATABASE.md` describe los cinco modelos, pero el `schema.prisma` adjunto aún no contiene `ActivityBankItem`, `Task`, `Assessment`, `AssessmentResult`, `GradingScale` ni `TeachingAssignment.gradingScaleId`: ninguna ruta de esta sección se declara implementada.
+
+### Permisos y alcance efectivo
+
+Se proponen diez códigos nuevos, según el catálogo real `recurso.acción` singular; los ocho primeros pertenecen a 2B-1 y los dos últimos a 2B-2. `manage` y `read` son independientes; rol, pantalla visible y administración de una institución no conceden acceso implícito. No ampliar las concesiones demo.
+
+| Recurso | Leer | Gestionar | Regla adicional |
+|---|---|---|---|
+| Banco | `activity-bank.read` | `activity-bank.manage` | Solo `ownerTeacherId` propio, incluso frente a administradores institucionales. |
+| Tarea | `task.read` | `task.manage` | Asignación docente propia y vigente. |
+| Evaluación | `assessment.read` | `assessment.manage` | Asignación propia y vigente; una tarea asociada debe ser de la misma asignación. |
+| Resultado | `assessment-result.read` | `assessment-result.manage` | Matrícula del mismo curso y año que la asignación. |
+| Escala | `grading-scale.read` | `grading-scale.manage` | Lectura/configuración en institución autorizada; cambio de escala aplicada exige también gestión de la asignación y preview/confirmación. |
+
+Toda operación docente comprueba usuario/docente/vínculo institucional activos, permiso efectivo en scope compatible y `TeachingAssignment` propia con `endedAt = null` y contexto institucional, curso y materia operativos. Las lecturas históricas autorizadas preservan resultados previos; la asignación finalizada o un Student inactivo no admiten nuevas escrituras de resultados. `Enrollment` no tiene estado de activación en el modelo aprobado. `RESOURCE_SET` continúa sin implementar. La gestión institucional de escala no permite editar banco de otro docente. Los ID válidos de otra asignación, curso o institución reciben `404 RESOURCE_NOT_FOUND` sin filtraciones. Las rutas de escala requieren ámbito institucional efectivo; la asignación elegida debe pertenecer a esa institución. `grading-scale.manage` por sí solo no autoriza editar asignaciones: para cambiar `TeachingAssignment.gradingScaleId` exigir además `teaching-assignment.manage` efectivo sobre esa asignación, con separación respecto a la gestión de escalas.
+
+### Transporte y errores compartidos
+
+Base `/api/v1`; respuestas `{ "data": ... }` o `{ "data": [...], "nextCursor": ... }`; errores `{ "error": { "code": "...", "message": "...", "requestId": "uuid" } }`. Cookies HttpOnly, sesión, `Cache-Control: no-store`, CSRF para mutaciones. UUID y `rowVersion` internos; Decimal como cadena decimal exacta en requests/responses (no `number` de JavaScript). Listas paginadas con cursor contextual y reautorización. El servidor obtiene actor, propietario y contexto de la base/sesión, rechaza campos ajenos con Zod y no expone datos de otras asignaciones. `expectedVersion` obligatorio en PATCH/PUT de entidades ya existentes; el alta de resultado para una pareja inexistente usa versión esperada nula y se resuelve con UNIQUE/transacción.
+
+Errores comunes de toda ruta: `400 VALIDATION_ERROR` (estructura o precisión inválida), `401 AUTHENTICATION_REQUIRED`, `403 PERMISSION_DENIED` y, en mutaciones, `403 CSRF_TOKEN_INVALID`, `404 RESOURCE_NOT_FOUND` (ausente o invisible). Específicos: `409 CONFLICT` (unicidad/vínculo duplicado o inactividad), `409 STALE_VERSION`, `409 CONCURRENT_MODIFICATION` (carrera no reintentable), `422 INVALID_REFERENCE` (curso, matrícula, tarea o escala incompatibles). Los códigos de confirmación y escala se detallan en 2B-2. No hay `DELETE` físico ni tabla adicional de notas.
+
+### Rutas 2B-1 — actividad, tarea, evaluación, resultado y proceso
+
+En la tabla `A = /api/v1/teaching-assignments/:assignmentId` y `B = /api/v1/institutions/:institutionId/me/activity-bank/items`. La ruta B resuelve el docente propio desde la sesión; el ID de institución debe corresponder al vínculo docente activo. Todas las rutas A exigen la asignación propia, vigente y los permisos/scope indicados; `GET .../process` exige también lectura de matrícula y Student para proyectar nómina. La respuesta incluye UUID, `rowVersion`, estado y procedencia solo cuando corresponda y sea visible. No se exponen resultados ajenos con una procedencia de banco.
+
+| Método/ruta | Permiso | Request | Éxito y errores específicos |
+|---|---|---|---|
+| `GET B`, `GET B/:itemId` | `activity-bank.read`, propietario | `kind?`, `q?`, `limit?`, `cursor?`; detalle sin body | `200` lista/detalle; `404` para banco ajeno. |
+| `POST B` | `activity-bank.manage`, propietario | `{kind:TASK\|INSTRUMENT,title,description,scoringKind,suggestedMaxPoints?,instrumentContent?}` | `201` copia propia; `400` campos/tipo incoherentes. |
+| `PATCH B/:itemId` | `activity-bank.manage`, propietario | Campos editables anteriores y `expectedVersion`; no cambiar propietario/UUID | `200`; `409 STALE_VERSION`. Una copia utilizada previamente permanece independiente. |
+| `GET A/tasks`, `GET A/tasks/:taskId` | `task.read` | `limit?`, `cursor?`; detalle sin body | `200`; `404` tarea de otra asignación. |
+| `POST A/tasks` | `task.manage`; para `sourceBankItemId`, también `activity-bank.read` propio | `{title,description,maxPoints,scoringKind,sourceBankItemId?}` | `201`; máximo >= 0, procedencia opcional y copia independiente; `404` banco ajeno. |
+| `POST A/tasks/:taskId/reuse` | `task.read` sobre origen y `task.manage` sobre destino propio | `{targetAssignmentId,title?,description?,maxPoints?,scoringKind?}` | `201` nueva tarea con `sourceTaskId`; no copia AssessmentResult ni estudiantes; `404`/`422` por contexto no autorizado/incompatible. |
+| `PATCH A/tasks/:taskId` | `task.manage` | `{title?,description?,expectedVersion}`; cambios del máximo: 2B-2 | `200`; `409 STALE_VERSION`. Cambio de `scoringKind` con resultados se rechaza. |
+| `GET A/assessments`, `GET A/assessments/:assessmentId` | `assessment.read` | `limit?`, `cursor?`, `taskId?`; detalle sin body | `200`; se identifica `taskId` o máximo/tipo propios. |
+| `POST A/assessments` | `assessment.manage`; si `taskId`, `task.read`; si banco, `activity-bank.read` propio | `{title,description?,taskId?,standaloneMaxPoints?,standaloneScoringKind?,instrumentContent?,sourceBankItemId?}` | `201`; `taskId` opcional, nunca requiere tarea previa; vinculada usa máximo/tipo de Task y nulos propios; `409 CONFLICT` por segunda evaluación vinculada; `422 INVALID_REFERENCE` si asignación difiere. |
+| `POST A/assessments/:assessmentId/reuse` | `assessment.read` origen, `assessment.manage` destino | `{targetAssignmentId,title?,description?,standaloneMaxPoints?,standaloneScoringKind?}` | `201` evaluación independiente con `sourceAssessmentId`; si origen estaba vinculado a Task se copian como propios su máximo/tipo efectivos; contenido copiado, sin `taskId`, resultados ni matrículas. Procedencia de banco ajeno no concede lectura del banco. |
+| `PATCH A/assessments/:assessmentId` | `assessment.manage` | `{title?,description?,instrumentContent?,expectedVersion}`; máximo independiente: 2B-2 | `200`; `409 STALE_VERSION`. No cambia tipo si hay resultados. |
+| `POST A/assessments/:assessmentId/link-task` | `assessment.manage` + `task.read` | `{taskId,expectedVersion}` | `200` solo si evaluación independiente sin resultados y Task libre de la misma A; vacía máximo/tipo independientes; `409 CONFLICT`/`422 INVALID_REFERENCE` si no cumple. |
+| `GET A/assessments/:assessmentId/results` | `assessment-result.read` + `assessment.read` + `enrollment.read`/`student.read` para nombres | `limit?`, `cursor?` | `200` planilla con filas reales y estado pendiente derivado de ausencia de fila; no persiste ceros implícitos. |
+| `PUT A/assessments/:assessmentId/results/:enrollmentId` | `assessment-result.manage` + `assessment.read` + `enrollment.read` | `{status:PENDIENTE\|EVALUADO,earnedPoints?:string,expectedVersion:null\|integer}` | `201` alta o `200` corrección; `409 STALE_VERSION`/`CONFLICT` concurrente, `422 INVALID_REFERENCE` matrícula fuera de curso/año. Pendiente exige puntaje/metadatos nulos; evaluado exige 0 <= puntos <= máximo actual; fecha y evaluador los fija servidor. |
+| `PUT A/tasks/:taskId/results/:enrollmentId` | `assessment-result.manage` + `task.read` + `enrollment.read` | Mismo body de resultado, más `expectedTaskVersion`; versión del resultado y de Task comprobadas | `201`/`200`; crea la única Assessment asociada al primer resultado, atómicamente y sin duplicado concurrente; `409`/`422` como arriba. |
+| `GET A/process` | `task.read`, `assessment.read`, `assessment-result.read`, `enrollment.read`, `student.read` | `limit?`, `cursor?` por matrícula; no body | `200` actividades y alumnos autorizados, totales y pendientes; **en 2B-1 `formalGrade = null` en toda fila**. |
+
+Una tarea sola es elegible y aparece pendiente hasta tener su evaluación/resultados; una Assessment vinculada no constituye otra actividad de cálculo. Una Assessment independiente cuenta por sí misma. Las operaciones con procedencia validan que el docente sea propietario del banco o que la asignación origen y destino sean ambas propias/vigentes; la copia no queda ligada a la edición posterior del origen. No se transfieren permisos de lectura mediante el FK de procedencia. En 2B-1 se bloquea todo cambio de máximo de una actividad con resultados y no se implementa preview/confirmación anticipada; el flujo autorizado se entrega en 2B-2. Las modificaciones sin resultados pueden permanecer fuera de `PATCH` hasta el contrato 2B-2 para que el cambio de máximo tenga una sola ruta coherente.
+
+### Proceso y reglas de puntuación de D-03
+
+Para cada `Enrollment` elegible en el curso/año real de A, formar el conjunto de actividades: cada Task una vez (con su Assessment vinculada si existe) y cada Assessment independiente una vez. Ausencia de AssessmentResult o fila `PENDIENTE` para una actividad elegible = pendiente, nunca cero. `EVALUADO` con `earnedPoints = "0"` = cero real. Las actividades `ORDINARIA` suman sus máximos al denominador **incluso si están pendientes**. Las `FUERA_DE_ESCALA` no lo aumentan y sus puntos evaluados sí suman al numerador.
+
+| Campo de salida por matrícula | Definición exacta |
+|---|---|
+| `ordinaryPossible` / `D` | Suma de máximos de actividades ORDINARIA elegibles, una vez cada una. |
+| `ordinaryEarned` / `O` | Suma de puntos EVALUADO de ordinarias; los pendientes se mantienen separados. |
+| `extraEarned` / `X` | Suma de puntos EVALUADO de FUERA_DE_ESCALA. |
+| `totalEarned` / `T` | `O + X`. |
+| `pendingCount`, `isPartial` | Número de actividades elegibles sin resultado evaluado; `isPartial = pendingCount > 0`. Incluye puntos adicionales pendientes. |
+| `percentage` | Si `D > 0`, `T / D × 100` decimal exacto; si `D = 0`, `null`. Puede superar 100 y, mientras haya pendientes, se etiqueta **parcial**. |
+| `formalGrade` | En 2B-1 siempre `null`. En 2B-2, solo si `D > 0`, `pendingCount = 0` y la asignación posee versión de escala completa y válida; si no, `null`. |
+| `formalGradeReason` | Si `D = 0`, `NO_ORDINARY_BASE`; si `D > 0` y hay pendientes, `PENDING_RESULTS`; si `D > 0`, no hay pendientes y falta escala válida, `NO_VALID_SCALE`; si hay nota formal calculable, `null`. `pendingCount` e `isPartial` siguen reflejando pendientes aunque `D = 0`. En 2B-1 se usa `NO_VALID_SCALE` solo si no hay otro motivo. |
+
+Respuesta ilustrativa de 2B-1 (valores de muestra, no calificación institucional):
+
+```json
+{"data":{"assignmentId":"uuid","activities":[],"rows":[{"enrollmentId":"uuid","ordinaryPossible":"20","ordinaryEarned":"10","extraEarned":"3","totalEarned":"13","pendingCount":1,"isPartial":true,"percentage":"65","formalGrade":null,"formalGradeReason":"PENDING_RESULTS"}]}}
+```
+
+Los totales/porcentajes son derivados, no otra tabla de notas. `percentage > 100` se conserva internamente. En 2B-2 se convierte `min(percentage, 100)` según la **versión de escala aplicada**, se redondea la calificación resultante con su definición y se limita el resultado final al intervalo de la escala, especialmente a `maximumGrade`. No se inventa una conversión sin escala.
+
+### Rutas 2B-2 — escala y modificaciones con confirmación
+
+`G = /api/v1/institutions/:institutionId/grading-scales`. Lecturas y escritura requieren permiso de escala y ámbito institucional efectivo. No se sobreescribe una versión ya utilizada (`lockedAt`); para cambiar la definición se crea una nueva versión inmutable en la misma institución. Aplicar otra versión en A solo mediante cambio explícito. El servidor no supone una escala por defecto para todas las instituciones.
+
+| Método/ruta | Permiso y scope | Request | Éxito y errores específicos |
+|---|---|---|---|
+| `GET G`, `GET G/:scaleId` | `grading-scale.read` en institución | `limit?`, `cursor?`; detalle sin body | `200` lista o versión con límites y definiciones; 404 si ajena. |
+| `POST G` | `grading-scale.manage` en institución | `{name,version:1,minimumGrade,maximumGrade,conversionDefinition,roundingDefinition}` | `201` nueva escala completa; `422 INVALID_SCALE_DEFINITION` si inválida/incompleta; `409 CONFLICT` si nombre+versión repetidos. |
+| `POST G/:scaleId/versions` | `grading-scale.manage` en institución | `{version,minimumGrade,maximumGrade,conversionDefinition,roundingDefinition,expectedVersion}` | `201` nueva versión (`version` superior), conserva original; `409 STALE_VERSION`/`SCALE_VERSION_LOCKED` si intento de sobrescritura, `422` definición inválida. |
+| `GET A/grading-scale` | `grading-scale.read` + `teaching-assignment.read` efectivos en A | Sin body | `200 {data:null}` si no hay escala, o versión aplicada; no revela escalas ajenas. |
+| `POST A/grading-scale/change-preview` | `grading-scale.read` + `teaching-assignment.manage` en A | `{newGradingScaleId,expectedAssignmentVersion}` | `200 {data:{before,after,warnings,affectedCount,confirmationToken,expiresAt}}`; `422 INVALID_REFERENCE` si escala de otra institución o inválida, `409 STALE_VERSION`. No escribe. |
+| `PUT A/grading-scale` | `grading-scale.read` + `teaching-assignment.manage` en A | `{newGradingScaleId,expectedAssignmentVersion,confirmationToken}` | `200` nueva referencia versionada y Proceso derivado; `409` por token/versión/snapshot obsoletos. Audita antes/después e impacto. |
+| `POST A/tasks/:taskId/max-points/preview` | `task.manage` + lectura de resultados contextual | `{newMaxPoints,expectedVersion}` | `200` advertencia, recálculo proyectado, `confirmationToken` y expiración si hay resultados; `409 STALE_VERSION`; no escribe. |
+| `PATCH A/tasks/:taskId/max-points` | `task.manage` en A | `{newMaxPoints,expectedVersion,confirmationToken?}` | `200` valor nuevo; si hay resultados, token obligatorio (`409 CONFIRMATION_REQUIRED`); audita. La evaluación vinculada hereda el nuevo máximo. |
+| `POST A/assessments/:assessmentId/max-points/preview` | `assessment.manage` + lectura de resultados contextual | `{newMaxPoints,expectedVersion}` | `200` igual, solo Assessment independiente; vinculada: `422 INVALID_REFERENCE` (cambiar máximo de Task). |
+| `PATCH A/assessments/:assessmentId/max-points` | `assessment.manage` en A | `{newMaxPoints,expectedVersion,confirmationToken?}` | `200` igual, solo independiente; si hay resultados exigir token. |
+
+Cuando el máximo cambia sin resultados, aplicar con `expectedVersion` y comprobación transaccional de ausencia de resultados; si se insertó alguno durante la carrera, `409 CONFIRMATION_REQUIRED` y preview nuevo. La preview con resultados y la confirmación exhiben el valor anterior/nuevo y el efecto por contexto, sin alterar `earnedPoints`. Al reducir el máximo, un resultado histórico evaluado por encima del nuevo valor se conserva y se advierte; **nuevas** capturas/correcciones de puntos se validan contra el máximo efectivo nuevo. Solo se recalculan proyecciones derivadas. Cambio de scoringKind, asociación de tarea con resultados, institución o matrícula histórica no se ofrecen como vía para reinterpretar calificaciones. El cambio de escala vuelve a calcular únicamente salidas derivadas y conserva versión/configuración históricas de la escala anterior para reproducibilidad.
+
+### Contrato discriminado de `GradingScale` (2B-2)
+
+Las cadenas decimales son exactas y canónicas; límites institucionales `minimumGrade` y `maximumGrade` son strings Decimal externos, verificados con la misma precisión. JSON Schema 2020-12 de `conversionDefinition` versión 1:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GradingScale conversionDefinition v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "kind", "bands"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "kind": {"const": "PERCENTAGE_BANDS"},
+    "bands": {
+      "type": "array", "minItems": 1, "maxItems": 256,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["fromPercent", "grade"],
+        "properties": {
+          "fromPercent": {"$ref": "#/$defs/percentDecimal"},
+          "grade": {"$ref": "#/$defs/gradeDecimal"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "percentDecimal": {"type": "string", "pattern": "^(0|[1-9][0-9]{0,2})(\\.[0-9]{1,6})?$"},
+    "gradeDecimal": {"type": "string", "pattern": "^-?(0|[1-9][0-9]{0,11})(\\.[0-9]{1,6})?$"}
+  }
+}
+```
+
+La primera banda comienza en `"0"`; sus umbrales son únicos y estrictamente crecientes dentro de `[0,100]`. Cada banda cubre `[fromPercent, siguiente)` y la última llega a 100 inclusive. Para porcentaje superior a 100 se devuelve `maximumGrade` sin extrapolar. Las calificaciones de bandas están dentro de `[minimumGrade,maximumGrade]` y son no decrecientes. No se impone ningún umbral ni nota institucional. Cada JSON tiene máximo 16 KiB serializados; además del schema, la validación semántica rechaza propiedades no declaradas, versiones/tipos desconocidos, strings decimales no canónicos (ceros decimales finales, cero negativo), lagunas, valores fuera de rango y escalas incompletas. Conservar un evaluador para las versiones de schema usadas históricamente; actualizar escala usada significa crear versión nueva.
+
+JSON Schema 2020-12 de `roundingDefinition` versión 1:
+
+```json
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GradingScale roundingDefinition v1",
+  "oneOf": [
+    {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "kind"],
+      "properties": {"schemaVersion": {"const": 1}, "kind": {"const": "NONE"}}
+    },
+    {
+      "type": "object", "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "mode", "places"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "kind": {"const": "DECIMAL_PLACES"},
+        "mode": {"enum": ["HALF_UP", "HALF_EVEN", "TOWARD_ZERO"]},
+        "places": {"type": "integer", "minimum": 0, "maximum": 6}
+      }
+    }
+  ]
+}
+```
+
+`NONE` conserva el valor decimal de la banda. `HALF_UP` resuelve el empate alejándose de cero; `HALF_EVEN` al dígito par y `TOWARD_ZERO` trunca. El redondeo actúa **sobre la nota convertida**, nunca sobre el porcentaje antes de comparar umbrales. Tras redondear, limitar otra vez a mínimo/máximo de escala. Se usa aritmética decimal exacta, nunca binaria flotante. **Ejemplo exclusivamente ilustrativo, no institucional:** `minimumGrade="1"`, `maximumGrade="5"`, bandas `[{"fromPercent":"0","grade":"1"},{"fromPercent":"60","grade":"3"},{"fromPercent":"90","grade":"5"}]`, redondeo `{"schemaVersion":1,"kind":"DECIMAL_PLACES","mode":"HALF_EVEN","places":2}`; la institución debe configurar sus propios valores.
+
+### `confirmationToken` y concurrencia (2B-2)
+
+La preview genera un token opaco para el cliente, con estructura `base64url(payloadCanónico).base64url(HMAC-SHA-256(payloadCanónico,claveDelKid))`, firma validada en tiempo constante. `payloadCanónico` es JSON UTF-8 serializado con orden/normalización deterministas, versión de contrato 1, sin datos sensibles de alumnos ni secreto. Contiene: `kid`, `purpose` (`TASK_MAX_CHANGE`, `ASSESSMENT_MAX_CHANGE` o `ASSIGNMENT_SCALE_CHANGE`), `actorUserId`, `authSessionId`, `institutionId`, `assignmentId`, `resourceId`, `expectedAssignmentVersion`, `expectedResourceVersion`, `oldValue`, `newValue` (máximos como Decimal string o UUID de versiones de escala), `contextDigest` SHA-256, `issuedAt`, `expiresAt` y `nonce` aleatorio de al menos 128 bits. En un cambio de escala `resourceId` es el ID de A, y ambos `expected*Version` refieren a la versión de A; en cambio de máximo `resourceId` y su versión refieren a Task/Assessment. Los campos no se aceptan como sustituto de la autorización actual.
+
+`contextDigest` resume canónicamente el contexto que afecta al cálculo antes de la preview: versión y relación de A; IDs, versiones, máximos y scoringKind de Task/Assessment elegibles y enlaces; IDs de Enrollment elegibles; para cada pareja actividad/matrícula, ID/versión/estado/puntos del AssessmentResult o marcador explícito de ausencia; y para escala anterior/nueva, ID, versión funcional, límites y definiciones JSON. La preview muestra antes/después, pendientes, sobrepasos históricos y advertencias aplicables y vence **5 minutos** después de su emisión. Debe identificar los cambios derivados esperados sin persistirlos ni registrar puntajes nuevos.
+
+Al confirmar, el servidor valida sesión/CSRF, permisos y scope **actuales**, firma, `kid`, mismo actor y sesión, propósito/recurso/cambio exactos y expiración. Valores anterior y nuevo iguales se rechazan como solicitud inválida. En una transacción con bloqueo o control serializable, relee el contexto, compara las versiones y recalcula `contextDigest`; verifica también el `expectedVersion` enviado. Cualquier resultado añadido/editado, cambio de matrícula elegible, actividad/enlace, asignación o escala invalida la preview. Si todo coincide, cambia el valor o FK de escala, incrementa `rowVersion`, recalcula solo las vistas derivadas (sin cambiar `earnedPoints`) y escribe `AuditLog` del valor anterior/nuevo y efecto dentro de la misma transacción. El segundo uso del token tras éxito encuentra versión distinta y falla: no requiere tabla de tokens consumidos; un fallo con rollback y estado intacto permite reintentar hasta su expiración.
+
+La clave HMAC se comparte por configuración segura entre instancias; no depende de memoria local ni de afinidad de sesión. Rotación por `kid` conserva la clave previa solo durante la ventana máxima de cinco minutos. Invalidan confirmación la expiración, firma o forma inválida, sesión terminada/distinta, permiso revocado, otra operación que cambie el snapshot y un uso previo exitoso. No se registra el token ni la clave en logs. `400 INVALID_CONFIRMATION` para token malformado/manipulado o cambio/purpose distintos; `409 CONFIRMATION_EXPIRED` para vencimiento; `409 STALE_PREVIEW` si el digest cambió; `409 STALE_VERSION` para versiones esperadas caducadas; `409 CONFIRMATION_REQUIRED` si faltó token donde hay resultados; `409 CONCURRENT_MODIFICATION` si la transacción pierde una carrera. `422 INVALID_SCALE_DEFINITION` para esquema/semántica inválidos y `409 SCALE_VERSION_LOCKED` si se pretende sobrescribir una versión en uso. Autenticación/CSRF/permisos siguen 401/403; no se exponen valores de otros cursos en errores.
+
+### UX y límites de Hito 2B
+
+Mantener **Inicio → Institución → Curso → Materia → espacio de trabajo** y la nómina real de 2A. **Materia → Tareas y Evaluaciones** permite crear tarea con título/descripción/máximo/tipo, crear evaluación independiente o vinculada, buscar/reutilizar banco privado propio y actividades propias, capturar resultados y distinguir pendientes/cero. **Materia → Proceso** usa `Enrollment` del curso, muestra actividades una sola vez, columnas ordinarias y adicionales, totales y porcentaje etiquetado «parcial» cuando corresponda. En 2B-1 no aparece nota formal como calculada; `formalGrade` permanece `null`. En 2B-2 se presenta nota solo cuando el cálculo está completo y existe escala válida, y se incorpora preview con advertencias y confirmación para cambios de máximo/escala. Los botones no reemplazan permisos del servidor.
+
+No se incluyen asistencia, anecdótico, Conducta, informes grupales, consulta pública, importación CSV/XLSX, planificación, mallas completas, IA ni perfil académico integral RF-034. No se alteran las APIs de Hito 1, currículo o Hito 2A. La matriz B-01 a B-27 y sus subcasos figuran en [TESTS.md](../tests/TESTS.md); aún no se han ejecutado.

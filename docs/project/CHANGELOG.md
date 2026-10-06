@@ -1,5 +1,13 @@
 # Changelog
 
+## 06/10/2026 — Hito 2B aprobado como contrato documental
+
+- Se fijó el alcance de ActivityBankItem, Task, Assessment, AssessmentResult, GradingScale, TeachingAssignment.gradingScaleId y Proceso, dividido técnicamente en 2B-1 (cuatro modelos, ocho permisos, resultados, Proceso sin nota) y 2B-2 (escala, dos permisos, nota formal y cambios de máximo/escala con preview y confirmación). No se generaron código, migraciones ni pruebas ejecutadas de 2B.
+- API.md incorpora rutas, permisos, scope, aislamiento del banco privado, reutilización, resultados únicos, concurrencia, errores, UX y cálculo de puntos ordinarios/adicionales sobre matrículas reales. Pendientes producen porcentaje parcial y `formalGrade = null`; D=0 no genera porcentaje ni nota.
+- Se aprobó JSON discriminado versión 1 `PERCENTAGE_BANDS` para conversión y `NONE`/`DECIMAL_PLACES` para redondeo, sin umbrales ni valores institucionales predefinidos. La versión de escala utilizada permanece inmutable; la nota formal requiere escala completa, D>0 y cero pendientes.
+- Preview/confirmación de máximo y cambio de escala usa `confirmationToken` HMAC-SHA-256 de cinco minutos unido a actor, sesión, recurso, versiones, cambio y `contextDigest`, revalidado transaccionalmente con auditoría. La matriz B-01 a B-27 incluye los subcasos de JSON, parcialidad, token y concurrencia, todos pendientes.
+- Se registró ACAD-2B-01 y el próximo checkpoint Codex 2B-1. Los 34 RF, 15 RNF y D-01 a D-07 permanecen intactos; no se modificaron REQUIREMENTS.md, DATABASE.md ni PROJECT_MASTER.md.
+
 ## 05/10/2026 — Hito 2A Student + Enrollment implementado
 
 - Se añadió `Student` global y `Enrollment` histórico contextual con migración restrictiva, índices, CHECK de cédula/activación, FK compuesta y bloqueo de cambios destructivos de matrícula. Se verificó que `Course_academic_year_institution_fkey` ya existía.
