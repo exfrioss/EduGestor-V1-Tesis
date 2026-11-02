@@ -56,7 +56,7 @@ export const ensureCsrfToken = async (): Promise<string> => {
 
 export const apiMutation = async <T>(
   path: string,
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'PUT',
   body?: unknown,
 ): Promise<T> => {
   const token = await ensureCsrfToken();

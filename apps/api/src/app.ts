@@ -17,6 +17,7 @@ import { createAuthorizationRouter } from './modules/authorization/authorization
 import { createAcademicRouter } from './modules/academic/academic.router.js';
 import { createCurriculumRouter } from './modules/curriculum/curriculum.router.js';
 import { createStudentsRouter } from './modules/students/students.router.js';
+import { createActivitiesRouter } from './modules/activities/activities.router.js';
 
 interface AppOptions {
   allowedOrigins?: string[];
@@ -61,6 +62,7 @@ export const createApp = (database: DatabaseProbe, options: AppOptions = {}) => 
     app.use('/api/v1', createAcademicRouter(options.auth.client, options.auth.config));
     app.use('/api/v1', createCurriculumRouter(options.auth.client, options.auth.config));
     app.use('/api/v1', createStudentsRouter(options.auth.client, options.auth.config));
+    app.use('/api/v1', createActivitiesRouter(options.auth.client, options.auth.config));
   }
 
   app.use(notFoundHandler);

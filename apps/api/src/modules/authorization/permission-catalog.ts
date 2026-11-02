@@ -29,6 +29,14 @@ export const PERMISSION_CATALOG = [
   { code: 'student.manage', description: 'Administrar datos y activación de estudiantes' },
   { code: 'enrollment.read', description: 'Consultar matrículas autorizadas' },
   { code: 'enrollment.manage', description: 'Crear matrículas en cursos autorizados' },
+  { code: 'activity-bank.read', description: 'Consultar el banco privado propio' },
+  { code: 'activity-bank.manage', description: 'Administrar el banco privado propio' },
+  { code: 'task.read', description: 'Consultar tareas de asignaciones propias' },
+  { code: 'task.manage', description: 'Administrar tareas de asignaciones propias' },
+  { code: 'assessment.read', description: 'Consultar evaluaciones de asignaciones propias' },
+  { code: 'assessment.manage', description: 'Administrar evaluaciones de asignaciones propias' },
+  { code: 'assessment-result.read', description: 'Consultar resultados de evaluaciones propias' },
+  { code: 'assessment-result.manage', description: 'Cargar y corregir resultados de evaluaciones propias' },
 ] as const;
 
 export const HITO1_PERMISSION_CODES = [
