@@ -20,7 +20,7 @@ export function PermissionGate({
     queryFn: async () => {
       try {
         const result = await apiRequest<{ authorized: true }>(
-          `/api/v1/authorization/check/${resourceType}/${resourceId}/${permission}`,
+          `/api/v1/authorization/check/${resourceType === 'teaching-assignment' ? 'teachingAssignment' : resourceType}/${resourceId}/${permission}`,
         );
         return result.authorized;
       } catch (error) {

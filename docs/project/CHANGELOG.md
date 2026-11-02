@@ -1,5 +1,15 @@
 # Changelog
 
+## 06/10/2026 — Hito 2B-1 implementado
+
+- Se añadieron cuatro modelos y la migración `20261006120000_hito2b1_tasks_assessments` con CHECK, UNIQUE, FK restrictivas y triggers de contexto de tarea, evaluación, resultado y matrícula; las seis migraciones previas se conservaron.
+- El catálogo suma 29 permisos: los 21 anteriores intactos y ocho de banco, tareas, evaluaciones y resultados. El bootstrap demo no recibe concesiones nuevas.
+- Se implementaron las rutas 2B-1 con banco privado, tareas, evaluaciones independientes/vinculadas, copias independientes, resultados atómicos y Proceso D/O/X/T en Decimal. La nota formal permanece nula.
+- El portal docente añadió Tareas y Evaluaciones y Proceso, con banco, reutilización entre asignaciones propias, captura/corrección individual, pendientes frente a cero, desglose y paginación.
+- En PostgreSQL aislado aprobaron siete migraciones desde vacío y 97/97 pruebas de integración API; suite ordinaria shared 1/1, API 13/13 con 84 DB omitidas y web 14/14. Typecheck/build, E2E simulado 1/1 y E2E real 4/4 aprobaron; los tres recorridos reales anteriores regresaron sin fallas.
+- Las primeras pruebas detectaron expectativas fijas de 21 permisos, un fixture de cálculo que compartía actividades y una consulta RTL ambigua/transitoria; se corrigieron antes de la validación final. Tras la integración se reprovisionaron las credenciales ficticias del demo aislado para repetir el E2E de Hito 1. `npm` no está instalado en el host, por lo que se invocaron los binarios locales equivalentes.
+- 2B-2 sigue pendiente: escala, conversión/redondeo, cambios confirmados y nota formal. No hubo commit, tag ni merge; REQUIREMENTS.md, DATABASE.md y PROJECT_MASTER.md permanecen intactos.
+
 ## 06/10/2026 — Hito 2B aprobado como contrato documental
 
 - Se fijó el alcance de ActivityBankItem, Task, Assessment, AssessmentResult, GradingScale, TeachingAssignment.gradingScaleId y Proceso, dividido técnicamente en 2B-1 (cuatro modelos, ocho permisos, resultados, Proceso sin nota) y 2B-2 (escala, dos permisos, nota formal y cambios de máximo/escala con preview y confirmación). No se generaron código, migraciones ni pruebas ejecutadas de 2B.

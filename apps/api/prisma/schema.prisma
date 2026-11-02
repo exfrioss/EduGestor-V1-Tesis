@@ -30,6 +30,21 @@ enum AuditOutcome {
   FAILURE
 }
 
+enum ActivityBankKind {
+  TASK
+  INSTRUMENT
+}
+
+enum ScoringKind {
+  ORDINARIA
+  FUERA_DE_ESCALA
+}
+
+enum AssessmentResultStatus {
+  PENDIENTE
+  EVALUADO
+}
+
 model User {
   id              String      @id @default(uuid()) @db.Uuid
   login           String      @db.Text
@@ -56,6 +71,9 @@ model User {
   curriculumMappingsCreated SubjectCurriculumMapping[] @relation("CurriculumMappingCreatedBy")
   curriculumMappingsUpdated SubjectCurriculumMapping[] @relation("CurriculumMappingUpdatedBy")
   studentsDisabled         Student[]                  @relation("StudentDisabledBy")
+  tasksCreated             Task[]                     @relation("TaskCreatedBy")
+  assessmentsCreated       Assessment[]               @relation("AssessmentCreatedBy")
+  resultsEvaluated         AssessmentResult[]         @relation("ResultEvaluatedBy")
   auditLogs                 AuditLog[]                 @relation("AuditActor")
 }
 
@@ -232,6 +250,7 @@ model Teacher {
   disabledBy   User?                @relation("TeacherDisabledBy", fields: [disabledById], references: [id], onDelete: Restrict)
   institutions TeacherInstitution[]
   assignments  TeachingAssignment[]
+  bankItems    ActivityBankItem[]
 
   @@index([disabledById])
 }
@@ -335,6 +354,7 @@ model Enrollment {
   student      Student      @relation(fields: [studentId], references: [id], onDelete: Restrict)
   course       Course       @relation(fields: [courseId, academicYearId], references: [id, academicYearId], onDelete: Restrict)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
+  assessmentResults AssessmentResult[]
 
   @@unique([studentId, courseId, academicYearId])
   @@index([courseId, academicYearId])
@@ -425,11 +445,109 @@ model TeachingAssignment {
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   course      Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
   subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  tasks       Task[]
+  assessments Assessment[]
 
   @@unique([teacherId, courseId, subjectId])
   @@index([teacherId, endedAt])
   @@index([courseId, subjectId])
   @@index([institutionId])
+}
+
+model ActivityBankItem {
+  id                 String           @id @default(uuid()) @db.Uuid
+  ownerTeacherId     String           @db.Uuid
+  kind               ActivityBankKind
+  title              String           @db.Text
+  description        String           @db.Text
+  instrumentContent  String?          @db.Text
+  scoringKind        ScoringKind
+  suggestedMaxPoints Decimal?         @db.Decimal(12, 4)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime         @updatedAt @db.Timestamptz(3)
+  rowVersion         Int              @default(1)
+
+  ownerTeacher Teacher      @relation(fields: [ownerTeacherId], references: [id], onDelete: Restrict)
+  sourceTasks  Task[]
+  sourceAssessments Assessment[]
+
+  @@index([ownerTeacherId, kind])
+}
+
+model Task {
+  id                   String      @id @default(uuid()) @db.Uuid
+  teachingAssignmentId String      @db.Uuid
+  title                String      @db.Text
+  description          String      @db.Text
+  maxPoints            Decimal     @db.Decimal(12, 4)
+  scoringKind          ScoringKind
+  sourceBankItemId     String?     @db.Uuid
+  sourceTaskId         String?     @db.Uuid
+  createdById          String      @db.Uuid
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime    @updatedAt @db.Timestamptz(3)
+  rowVersion           Int         @default(1)
+
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  sourceBankItem     ActivityBankItem?   @relation(fields: [sourceBankItemId], references: [id], onDelete: Restrict)
+  sourceTask         Task?               @relation("TaskCopies", fields: [sourceTaskId], references: [id], onDelete: Restrict)
+  copies             Task[]              @relation("TaskCopies")
+  createdBy          User                @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assessment         Assessment?
+
+  @@index([teachingAssignmentId, createdAt])
+  @@index([sourceBankItemId])
+  @@index([sourceTaskId])
+}
+
+model Assessment {
+  id                    String       @id @default(uuid()) @db.Uuid
+  teachingAssignmentId  String       @db.Uuid
+  title                 String       @db.Text
+  description           String?      @db.Text
+  taskId                String?      @unique @db.Uuid
+  sourceBankItemId      String?      @db.Uuid
+  sourceAssessmentId    String?      @db.Uuid
+  instrumentContent     String?      @db.Text
+  standaloneMaxPoints   Decimal?     @db.Decimal(12, 4)
+  standaloneScoringKind ScoringKind?
+  createdById           String       @db.Uuid
+  createdAt             DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime     @updatedAt @db.Timestamptz(3)
+  rowVersion            Int          @default(1)
+
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict)
+  task               Task?              @relation(fields: [taskId], references: [id], onDelete: Restrict)
+  sourceBankItem     ActivityBankItem?   @relation(fields: [sourceBankItemId], references: [id], onDelete: Restrict)
+  sourceAssessment   Assessment?        @relation("AssessmentCopies", fields: [sourceAssessmentId], references: [id], onDelete: Restrict)
+  copies             Assessment[]       @relation("AssessmentCopies")
+  createdBy          User               @relation("AssessmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  results            AssessmentResult[]
+
+  @@index([teachingAssignmentId, createdAt])
+  @@index([sourceBankItemId])
+  @@index([sourceAssessmentId])
+}
+
+model AssessmentResult {
+  id           String                 @id @default(uuid()) @db.Uuid
+  assessmentId String                 @db.Uuid
+  enrollmentId String                 @db.Uuid
+  status       AssessmentResultStatus
+  earnedPoints Decimal?               @db.Decimal(12, 4)
+  evaluatedAt  DateTime?              @db.Timestamptz(3)
+  evaluatedById String?               @db.Uuid
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
+  rowVersion   Int                    @default(1)
+
+  assessment Assessment @relation(fields: [assessmentId], references: [id], onDelete: Restrict)
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
+  evaluatedBy User?      @relation("ResultEvaluatedBy", fields: [evaluatedById], references: [id], onDelete: Restrict)
+
+  @@unique([assessmentId, enrollmentId])
+  @@index([enrollmentId, assessmentId])
+  @@index([assessmentId, status])
 }
 
 model AuditLog {

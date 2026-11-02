@@ -145,13 +145,13 @@ Requiere protección CSRF y `administration.revoke` dentro de un ámbito que con
 
 ### Catálogo de permisos
 
-En el checkpoint curricular, el catálogo contenía 17 códigos: los 13 permisos del Hito 1 más los cuatro permisos curriculares documentados en esta sección. Tras Hito 2A contiene 21; los permisos de Hito 2B aquí aprobados se incorporarán en sus checkpoints técnicos. Se sincroniza idempotentemente con:
+En el checkpoint curricular, el catálogo contenía 17 códigos: los 13 permisos del Hito 1 más los cuatro permisos curriculares documentados en esta sección. Tras Hito 2A contenía 21 y tras Hito 2B-1 contiene 29; los dos permisos de escala quedan para 2B-2. Se sincroniza idempotentemente con:
 
 ```bash
 npm run bootstrap:authorization-catalog -w @edugestor/api
 ```
 
-No contiene permisos de estudiantes, tareas, evaluaciones, asistencia, currículo, planificación ni IA.
+El catálogo actual incluye permisos de estudiantes, banco, tareas y evaluaciones. No incluye permisos de escala, asistencia, planificación ni IA.
 
 ## Núcleo institucional y académico Hito 1
 
@@ -459,7 +459,7 @@ Quedan expresamente fuera: tareas, banco de actividades, evaluaciones, calificac
 
 ## Contratos aprobados — Hito 2B: tareas, evaluaciones y Proceso (06/10/2026)
 
-**Estado: diseño aprobado, pendiente de implementación y pruebas.** Concreta RF-009 a RF-014 y D-01/D-03 sin crear RF/RNF. Se implementa en dos checkpoints técnicos: **2B-1** (banco, tareas, evaluaciones, resultados, permisos y Proceso sin nota formal) y **2B-2** (escala, definiciones JSON, conversión/redondeo, cambios de máximo y escala con preview/confirmación y nota formal). `DATABASE.md` describe los cinco modelos, pero el `schema.prisma` adjunto aún no contiene `ActivityBankItem`, `Task`, `Assessment`, `AssessmentResult`, `GradingScale` ni `TeachingAssignment.gradingScaleId`: ninguna ruta de esta sección se declara implementada.
+**Estado: 2B-1 implementado y validado el 06/10/2026; 2B-2 pendiente.** Concreta RF-009 a RF-014 y D-01/D-03 sin crear RF/RNF. El primer checkpoint incorpora banco, tareas, evaluaciones, resultados, permisos y Proceso sin nota formal. El segundo incorporará escala, definiciones JSON, conversión/redondeo, cambios de máximo y escala con preview/confirmación y nota formal. `schema.prisma` contiene los cuatro modelos de 2B-1; `GradingScale` y `TeachingAssignment.gradingScaleId` siguen ausentes.
 
 ### Permisos y alcance efectivo
 
@@ -625,4 +625,4 @@ La clave HMAC se comparte por configuración segura entre instancias; no depende
 
 Mantener **Inicio → Institución → Curso → Materia → espacio de trabajo** y la nómina real de 2A. **Materia → Tareas y Evaluaciones** permite crear tarea con título/descripción/máximo/tipo, crear evaluación independiente o vinculada, buscar/reutilizar banco privado propio y actividades propias, capturar resultados y distinguir pendientes/cero. **Materia → Proceso** usa `Enrollment` del curso, muestra actividades una sola vez, columnas ordinarias y adicionales, totales y porcentaje etiquetado «parcial» cuando corresponda. En 2B-1 no aparece nota formal como calculada; `formalGrade` permanece `null`. En 2B-2 se presenta nota solo cuando el cálculo está completo y existe escala válida, y se incorpora preview con advertencias y confirmación para cambios de máximo/escala. Los botones no reemplazan permisos del servidor.
 
-No se incluyen asistencia, anecdótico, Conducta, informes grupales, consulta pública, importación CSV/XLSX, planificación, mallas completas, IA ni perfil académico integral RF-034. No se alteran las APIs de Hito 1, currículo o Hito 2A. La matriz B-01 a B-27 y sus subcasos figuran en [TESTS.md](../tests/TESTS.md); aún no se han ejecutado.
+No se incluyen asistencia, anecdótico, Conducta, informes grupales, consulta pública, importación CSV/XLSX, planificación, mallas completas, IA ni perfil académico integral RF-034. No se alteran las APIs de Hito 1, currículo o Hito 2A. La ejecución de los casos 2B-1 y los pendientes de 2B-2 constan en [TESTS.md](../tests/TESTS.md).

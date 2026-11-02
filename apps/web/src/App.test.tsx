@@ -165,3 +165,55 @@ describe('Hito 2A — estudiantes', () => {
     expect(screen.queryByText(/calificaciones|asistencia|conducta|tareas/i)).not.toBeInTheDocument();
   });
 });
+
+describe('Hito 2B-1 — Tareas y Proceso', () => {
+  const courseId = '99999999-9999-4999-8999-999999999999';
+  const assignmentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const activityBase = `/api/v1/teaching-assignments/${assignmentId}`;
+  const routeBase = `/teacher/institutions/${institutionId}/courses/${courseId}/assignments/${assignmentId}`;
+  const task = { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', title: 'Trabajo ordinario', description: 'Tema', maxPoints: '20', scoringKind: 'ORDINARIA', assessmentId: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', rowVersion: 1 };
+
+  it('B-23: muestra tarea, banco, evaluación y diferencia pendiente de cero evaluado', async () => {
+    window.history.replaceState({}, '', `${routeBase}/activities`);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path.endsWith('/auth/session')) return json(session(true));
+      if (path === '/api/v1/institutions') return json({ institutions: [] });
+      if (path === '/api/v1/me/teaching-assignments') return json({ teachingAssignments: [] });
+      if (path.includes('/authorization/check/')) return json({ authorized: true });
+      if (path.startsWith(`${activityBase}/tasks`)) return json({ data: [task], nextCursor: null });
+      if (path.startsWith(`${activityBase}/assessments/${task.assessmentId}/results`)) return json({ data: [
+        { enrollmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', student: { givenNames: 'Ana', familyNames: 'López', isActive: true }, status: 'PENDIENTE', result: null },
+        { enrollmentId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', student: { givenNames: 'Bea', familyNames: 'Pérez', isActive: true }, status: 'EVALUADO', result: { earnedPoints: '0', rowVersion: 1 } },
+      ], nextCursor: null });
+      if (path.startsWith(`${activityBase}/assessments`)) return json({ data: [{ id: task.assessmentId, title: 'Evaluación vinculada', taskId: task.id, maxPoints: '20', scoringKind: 'ORDINARIA', rowVersion: 1 }], nextCursor: null });
+      if (path.includes('/activity-bank/items')) return json({ data: [{ id: 'ffffffff-ffff-4fff-8fff-ffffffffffff', kind: 'TASK', title: 'Plantilla', description: 'Banco', scoringKind: 'ORDINARIA', suggestedMaxPoints: '20' }], nextCursor: null });
+      return json({});
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Tareas y Evaluaciones' })).toBeInTheDocument();
+    expect(await screen.findByText('Trabajo ordinario')).toBeInTheDocument();
+    expect(await screen.findByText('Plantilla')).toBeInTheDocument();
+    await userEvent.setup().click(screen.getAllByRole('button', { name: 'Resultados' })[0]!);
+    await waitFor(() => expect(screen.getByText('López, Ana')).toBeInTheDocument());
+    expect(screen.getAllByText('Pendiente', { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getByText('Evaluado: 0')).toBeInTheDocument();
+  });
+
+  it('B-24: Proceso muestra porcentaje parcial, extras y nota formal nula', async () => {
+    window.history.replaceState({}, '', `${routeBase}/process`);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const path = pathOf(input);
+      if (path.endsWith('/auth/session')) return json(session(true));
+      if (path === '/api/v1/institutions') return json({ institutions: [] });
+      if (path.startsWith(`${activityBase}/process`)) return json({ data: { assignmentId, activities: [{ id: task.id, title: task.title, maxPoints: '20', scoringKind: 'ORDINARIA' }], rows: [{ enrollmentId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', student: { givenNames: 'Ana', familyNames: 'López' }, ordinaryPossible: '20', ordinaryEarned: '20', extraEarned: '3', totalEarned: '23', pendingCount: 1, isPartial: true, percentage: '115', formalGrade: null, formalGradeReason: 'PENDING_RESULTS', results: [{ activityId: task.id, status: 'EVALUADO', earnedPoints: '20' }] }] }, nextCursor: null });
+      return json({});
+    }));
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Proceso' })).toBeInTheDocument();
+    expect(await screen.findByText('Proceso parcial')).toBeInTheDocument();
+    expect(screen.getByText('115 %')).toBeInTheDocument();
+    expect(screen.getByText('Hay resultados pendientes')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+});

@@ -1,6 +1,18 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT DOCUMENTAL APROBADO — Hito 2B; próximo paso Codex 2B-1
+## CHECKPOINT IMPLEMENTADO — Hito 2B-1 Tareas, Evaluaciones y Proceso
+
+**Fecha:** 06/10/2026. **Rama:** `feat/hito2b-tasks-assessments`. **Estado:** implementación 2B-1 validada sin commit, tag ni merge. El contrato 2B-2 sigue pendiente.
+
+- La migración `20261006120000_hito2b1_tasks_assessments` añade `ActivityBankItem`, `Task`, `Assessment` y `AssessmentResult`, con CHECK, UNIQUE, FK restrictivas y triggers de coherencia de tarea/asignación, resultado/matrícula y protección contra reinterpretación. Se verificaron previamente las seis migraciones y se reutilizaron las restricciones existentes de TeachingAssignment, Enrollment, Course y AcademicYear.
+- El catálogo pasó de 21 a 29 códigos: ocho permisos `activity-bank`, `task`, `assessment` y `assessment-result`, cada uno con `read` y `manage` independientes. La sincronización sigue idempotente y el demo mantiene sus concesiones históricas.
+- Se implementaron las rutas 2B-1 de [API.md](../architecture/API.md): banco privado del docente, tareas, evaluaciones independientes o vinculadas, copia independiente, resultados únicos y Proceso. Cada operación docente valida cuenta, docente, vínculo institucional, asignación propia vigente, contexto activo y permiso/scope efectivo. Las escrituras son transaccionales y auditadas; el primer resultado por tarea bloquea su fila y crea una sola evaluación vinculada.
+- Proceso calcula con Decimal sobre Enrollment real D/O/X/T, pendientes y porcentaje parcial. Una evaluación vinculada no se duplica; no se escriben totales derivados. `formalGrade` siempre es `null`, con razón `NO_ORDINARY_BASE`, `PENDING_RESULTS` o `NO_VALID_SCALE`.
+- La UI de materia ofrece Tareas y Evaluaciones, banco privado, selección de destino propio para reutilización, creación/vinculación, carga y corrección de resultados, pendiente frente a cero y paginación. Proceso muestra actividades y desglose por matrícula, porcentaje parcial y ausencia de nota formal.
+- Validación: siete migraciones desde una base PostgreSQL vacía, `prisma validate/generate/status`, integración API 15 archivos y 97/97 pruebas con `RUN_DATABASE_TESTS=1`, suite ordinaria shared 1/1, API 13 aprobadas con 84 DB omitidas, web 14/14, typecheck/build, E2E simulado 1/1 y E2E real 4/4. Los E2E reales repitieron Hito 1, currículo, Hito 2A y el recorrido nuevo.
+- 2B-2 queda pendiente: `GradingScale`, permisos de escala, configuración/conversión/redondeo, nota formal y flujo de cambio confirmado de máximo/escala. Los casos mixtos B-07/B-16 y exclusivos B-09/B-17/B-18/B-21 no se declaran completos. Tampoco se modificaron REQUIREMENTS.md, DATABASE.md ni PROJECT_MASTER.md.
+
+## HISTÓRICO — contrato documental aprobado del Hito 2B
 
 **Fecha:** 06/10/2026. **Estado:** API/autorización/UX/reglas de cálculo y pruebas diseñadas; **no** se han implementado Hito 2B, sus migraciones o sus pruebas. Hito 1, infraestructura curricular y Hito 2A siguen implementados y aceptados. Se conserva la línea base de 34 RF, 15 RNF y D-01 a D-07 resueltas.
 

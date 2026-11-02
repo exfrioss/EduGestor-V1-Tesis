@@ -2,7 +2,7 @@
 
 ## Matriz prevista — Hito 2B Tareas, Evaluaciones y Proceso (06/10/2026)
 
-**Estado: aprobada documentalmente; ninguna prueba B-01 a B-27 se ha ejecutado todavía.** Los IDs son identificadores de prueba, no RF/RNF nuevos. `2B-1` = banco, tarea, evaluación, resultado, Proceso sin nota; `2B-2` = escala, conversión/redondeo, cambios confirmados y nota. Contratos completos en [API.md](../architecture/API.md), decisión [ACAD-2B-01](../architecture/DECISIONS.md). Ejecutar en PostgreSQL real los casos de integridad/concurrencia; no contabilizar suites que omitan DB.
+**Estado: los subcasos 2B-1 se ejecutaron el 06/10/2026; 2B-2 sigue pendiente.** Los IDs son identificadores de prueba, no RF/RNF nuevos. `2B-1` = banco, tarea, evaluación, resultado, Proceso sin nota; `2B-2` = escala, conversión/redondeo, cambios confirmados y nota. Contratos completos en [API.md](../architecture/API.md), decisión [ACAD-2B-01](../architecture/DECISIONS.md). Los casos de integridad/concurrencia se probaron en PostgreSQL real; la suite ordinaria omite intencionalmente las pruebas DB.
 
 | Caso | Checkpoint / nivel | Subcasos y resultado verificable |
 |---|---|---|
@@ -35,6 +35,34 @@
 | B-27 | 2B-1 y 2B-2 regresión real | Student/Enrollment de 2A, cédula única/contexto, curso → Estudiantes y Materia → Perfiles de Alumnos intactos; resultado solo para matrícula compatible y sin fuga de otras instituciones. |
 
 **Subcasos contractuales obligatorios:** en B-08 y B-24, ausencia de resultado y `PENDIENTE` provocan `isPartial=true`, `formalGrade=null` aunque exista escala; completar la última actividad elegible recalcula. En B-09 se prueban `NONE`, `DECIMAL_PLACES` y definición incompleta sin emitir nota. En B-16–B-18 y B-21 se ensayan token ligado a actor/sesión/recurso/versiones/valores/contextDigest, caducidad de cinco minutos, snapshots cambiantes, confirmación repetida, respuesta genérica y `AuditLog` transaccional; no hay almacenamiento en memoria por instancia. En B-10/B-12, usar carreras reales PostgreSQL. Registrar casos aprobados, fallidos y omitidos por checkpoint; repetir Hito 1/currículo/2A con la base/migraciones nuevas y E2E real. Ningún resultado histórico de Hito 2A equivale a ejecución de esta matriz.
+
+### Ejecución de 2B-1 — 06/10/2026
+
+Base aislada `edugestor_hito2b1_final_20261006`, creada vacía y migrada con las siete migraciones versionadas. La migración inicial ya contenía las FK compuestas de Course–AcademicYear–Institution y TeachingAssignment–Institution; la sexta incorporaba Enrollment–Course–AcademicYear. La séptima añadió solo restricciones nuevas para los cuatro modelos 2B-1. `prisma validate`, `prisma generate`, `migrate deploy` y `migrate status` aprobaron.
+
+| Casos | Resultado ejecutado en 2B-1 |
+|---|---|
+| B-01–B-06 | Aprobados en Supertest/PostgreSQL: tarea ordinaria y extra, evaluación independiente/vinculada, elegibilidad antes de resultados, creación atómica de vínculo, ausencia de fila, pendiente y cero real. |
+| B-08 | Aprobado para D=0 con extra y para parcialidad D>0; `formalGrade` permanece nula. |
+| B-10–B-12 | Aprobados: resultado único por pareja, carrera real de primeras escrituras 201/409, matrícula compatible y carrera real de creación de Assessment vinculada única. |
+| B-13–B-15 | Aprobados: banco privado frente a otro docente y administrador, copia de contenido con procedencia independiente, sin matrículas/resultados transferidos, y rechazo de ID/origen/destino ajenos. |
+| B-19 (2B-1) | Aprobados: vínculo solo con Task libre de la misma asignación y evaluación sin resultados; scoringKind no es editable por API, máximo con resultados bloqueado también en PostgreSQL. El cambio confirmado de máximo corresponde a 2B-2. |
+| B-20 (2B-1) | Aprobados: Student inactivo, curso/institución inactivos, asignación finalizada y docente desactivado impiden nuevas operaciones; resultado histórico permanece y vuelve a consultarse con autorización válida. |
+| B-22 (2B-1) | Aprobados: sesión, CSRF, scope, asignación propia, permiso read/manage separado, 404 contextual, banco de otro docente y ausencia de grants nuevos en demo. Escala queda para 2B-2. |
+| B-23–B-24 (2B-1) | Aprobados con RTL y Playwright real: creación de tarea, banco y evaluación visibles, captura de cero, pendientes, Proceso por matrícula real, D/O/X/T, parcialidad y nota formal nula. Confirmación de máximo/escala queda para 2B-2. |
+| B-25–B-27 | Aprobados mediante E2E reales de Hito 1, currículo y Student/Enrollment, además de sus suites de integración PostgreSQL. |
+
+La parte de cálculo de B-07 se probó con `D=20`, `O=20`, `X=3`, `T=23`, porcentaje `115` y nota nula; **B-07 no se marca completo** porque la nota máxima con escala corresponde a 2B-2. También se probó el bloqueo del máximo con resultados, pero **B-16 no se marca completo** porque su preview/confirmación es 2B-2. B-09, B-17, B-18 y B-21, y los subcasos de escala/nota de B-08, B-19, B-22, B-23 y B-24, siguen pendientes. No se configuró ninguna escala ni token provisional.
+
+| Suite final | Resultado |
+|---|---|
+| API con `RUN_DATABASE_TESTS=1` | 15 archivos, 97/97 pruebas aprobadas. |
+| Suite ordinaria | Shared 1/1, API 13/13 con 84 pruebas DB omitidas, Web 14/14. |
+| Typecheck y build | Shared, API y Web aprobados; Vite transformó 106 módulos. |
+| E2E simulado | 1/1 aprobado. |
+| E2E real | 4/4 aprobados: Hito 1, currículo, Hito 2A y B-23/B-24. |
+
+`npm` no está disponible en el host de ejecución; se usaron los binarios locales de Prisma, TypeScript, Vitest, Vite y Playwright que ejecutan los mismos scripts. Las incidencias transitorias fueron expectativas históricas que fijaban el catálogo en 21, fixtures compartidos en el nuevo cálculo y selectores RTL ambiguos; quedaron corregidas antes de esta corrida. La suite de integración actualiza credenciales del demo aislado: se reprovisionaron antes de repetir los cuatro E2E reales, que aprobaron 4/4.
 
 ## Matriz ejecutada — Hito 2A Student + Enrollment (05/10/2026)
 
