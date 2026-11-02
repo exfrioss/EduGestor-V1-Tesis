@@ -74,6 +74,7 @@ model User {
   tasksCreated             Task[]                     @relation("TaskCreatedBy")
   assessmentsCreated       Assessment[]               @relation("AssessmentCreatedBy")
   resultsEvaluated         AssessmentResult[]         @relation("ResultEvaluatedBy")
+  gradingScalesCreated     GradingScale[]             @relation("GradingScaleCreatedBy")
   auditLogs                 AuditLog[]                 @relation("AuditActor")
 }
 
@@ -209,6 +210,7 @@ model Institution {
   subjects            Subject[]
   teacherLinks        TeacherInstitution[]
   teachingAssignments TeachingAssignment[]
+  gradingScales       GradingScale[]
   accessScopes        AccessScope[]
   auditLogs           AuditLog[]
 
@@ -436,6 +438,7 @@ model TeachingAssignment {
   institutionId String    @db.Uuid
   courseId      String    @db.Uuid
   subjectId     String    @db.Uuid
+  gradingScaleId String?  @db.Uuid
   endedAt       DateTime? @db.Timestamptz(3)
   createdAt     DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
@@ -445,6 +448,7 @@ model TeachingAssignment {
   institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
   course      Course      @relation(fields: [courseId], references: [id], onDelete: Restrict)
   subject     Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  gradingScale GradingScale? @relation(fields: [gradingScaleId, institutionId], references: [id, institutionId], onDelete: Restrict)
   tasks       Task[]
   assessments Assessment[]
 
@@ -452,6 +456,31 @@ model TeachingAssignment {
   @@index([teacherId, endedAt])
   @@index([courseId, subjectId])
   @@index([institutionId])
+  @@index([gradingScaleId])
+}
+
+model GradingScale {
+  id                   String    @id @default(uuid()) @db.Uuid
+  institutionId        String    @db.Uuid
+  name                 String    @db.Text
+  version              Int
+  minimumGrade         Decimal   @db.Decimal(18, 6)
+  maximumGrade         Decimal   @db.Decimal(18, 6)
+  conversionDefinition Json      @db.JsonB
+  roundingDefinition   Json      @db.JsonB
+  lockedAt             DateTime? @db.Timestamptz(3)
+  createdById          String    @db.Uuid
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(3)
+  rowVersion           Int       @default(1)
+
+  institution Institution @relation(fields: [institutionId], references: [id], onDelete: Restrict)
+  createdBy   User        @relation("GradingScaleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignments TeachingAssignment[]
+
+  @@unique([institutionId, name, version])
+  @@unique([id, institutionId])
+  @@index([institutionId, name, version])
 }
 
 model ActivityBankItem {

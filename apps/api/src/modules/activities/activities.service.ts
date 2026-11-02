@@ -6,6 +6,7 @@ import type { PermissionCode } from '../authorization/permission-catalog.js';
 import { decodeCursor, encodeCursor } from '../curriculum/cursor.js';
 import type { z } from 'zod';
 import type * as S from './activities.schemas.js';
+import { formalGrade, validateDefinition } from '../grading/grading.definition.js';
 
 type Store = PrismaClient | Prisma.TransactionClient;
 const missing = () => new AppError(404, 'RESOURCE_NOT_FOUND', 'Recurso no encontrado');
@@ -54,6 +55,7 @@ export class ActivitiesService {
     return teacher;
   }
   private async assignment(tx: Store, id: string, ctx: OperationContext, codes: PermissionCode[]) {
+    if (tx !== this.db) await tx.$queryRaw`SELECT "id" FROM "TeachingAssignment" WHERE "id" = ${id}::uuid FOR UPDATE`;
     const row = await tx.teachingAssignment.findUnique({ where: { id }, include: { teacher: { include: { user: true, institutions: true } }, institution: true, course: true, subject: true } });
     if (!row || row.teacher.userId !== ctx.actorUserId || row.endedAt || !row.teacher.isActive || !row.teacher.user.isActive || !row.institution.isActive || !row.course.isActive || !row.subject.isActive || row.course.institutionId !== row.institutionId || row.subject.institutionId !== row.institutionId || !row.teacher.institutions.some(link => link.institutionId === row.institutionId && !link.endedAt)) throw missing();
     for (const code of codes) await this.permission(tx, ctx, code, row.institutionId, row.courseId);
@@ -136,8 +138,9 @@ export class ActivitiesService {
   }
   async patchTask(assignmentId: string, taskId: string, input: z.infer<typeof S.taskPatch>, ctx: OperationContext) {
     return this.transaction(async tx => {
+      const assignment = await this.assignment(tx, assignmentId, ctx, ['task.manage']);
       await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${taskId}::uuid FOR UPDATE`;
-      const assignment = await this.assignment(tx, assignmentId, ctx, ['task.manage']); const row = await this.task(tx, assignmentId, taskId);
+      const row = await this.task(tx, assignmentId, taskId);
       if (row.rowVersion !== input.expectedVersion) throw stale();
       const changed = await tx.task.update({ where: { id: row.id }, data: { ...(input.title ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), rowVersion: { increment: 1 } }, include: { assessment: { select: { id: true } } } });
       await this.audit(tx, ctx, 'task.update', 'Task', row.id, assignment.institutionId); return taskData(changed);
@@ -171,8 +174,9 @@ export class ActivitiesService {
   }
   async patchAssessment(assignmentId: string, assessmentId: string, input: z.infer<typeof S.assessmentPatch>, ctx: OperationContext) {
     return this.transaction(async tx => {
+      const assignment = await this.assignment(tx, assignmentId, ctx, ['assessment.manage']);
       await tx.$queryRaw`SELECT "id" FROM "Assessment" WHERE "id" = ${assessmentId}::uuid FOR UPDATE`;
-      const assignment = await this.assignment(tx, assignmentId, ctx, ['assessment.manage']); const row = await this.assessment(tx, assignmentId, assessmentId);
+      const row = await this.assessment(tx, assignmentId, assessmentId);
       if (row.rowVersion !== input.expectedVersion) throw stale();
       const changed = await tx.assessment.update({ where: { id: row.id }, data: { ...(input.title ? { title: input.title } : {}), ...(input.description !== undefined ? { description: input.description } : {}), ...(input.instrumentContent !== undefined ? { instrumentContent: input.instrumentContent } : {}), rowVersion: { increment: 1 } }, include: { task: true } });
       await this.audit(tx, ctx, 'assessment.update', 'Assessment', row.id, assignment.institutionId); return assessmentData(changed);
@@ -180,8 +184,9 @@ export class ActivitiesService {
   }
   async linkTask(assignmentId: string, assessmentId: string, input: z.infer<typeof S.linkTask>, ctx: OperationContext) {
     return this.transaction(async tx => {
+      const assignment = await this.assignment(tx, assignmentId, ctx, ['assessment.manage', 'task.read']);
       await tx.$queryRaw`SELECT "id" FROM "Assessment" WHERE "id" = ${assessmentId}::uuid FOR UPDATE`;
-      const assignment = await this.assignment(tx, assignmentId, ctx, ['assessment.manage', 'task.read']); const row = await this.assessment(tx, assignmentId, assessmentId);
+      const row = await this.assessment(tx, assignmentId, assessmentId);
       if (row.rowVersion !== input.expectedVersion) throw stale(); if (row.taskId) throw conflict();
       const task = await this.task(tx, assignmentId, input.taskId); if (task.assessment) throw conflict();
       if (await tx.assessmentResult.count({ where: { assessmentId: row.id } })) throw conflict();
@@ -201,6 +206,9 @@ export class ActivitiesService {
   }
   private async writeResult(tx: Prisma.TransactionClient, assignmentId: string, assessmentId: string, enrollmentId: string, input: z.infer<typeof S.resultPut>, ctx: OperationContext, taskId?: string) {
     const assignment = await this.assignment(tx, assignmentId, ctx, ['assessment-result.manage', taskId ? 'task.read' : 'assessment.read', 'enrollment.read']);
+    const current = await this.assessment(tx, assignmentId, assessmentId);
+    if (current.taskId) await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${current.taskId}::uuid FOR UPDATE`;
+    else await tx.$queryRaw`SELECT "id" FROM "Assessment" WHERE "id" = ${assessmentId}::uuid FOR UPDATE`;
     const assessment = await this.assessment(tx, assignmentId, assessmentId);
     await this.enrollment(tx, assignment, enrollmentId, true);
     const max = assessment.task?.maxPoints ?? assessment.standaloneMaxPoints!;
@@ -235,6 +243,11 @@ export class ActivitiesService {
 
   async process(assignmentId: string, query: z.infer<typeof S.page>, ctx: OperationContext) {
     const assignment = await this.assignment(this.db, assignmentId, ctx, ['task.read', 'assessment.read', 'assessment-result.read', 'enrollment.read', 'student.read']);
+    const appliedScale = assignment.gradingScaleId ? await this.db.gradingScale.findFirst({ where: { id: assignment.gradingScaleId, institutionId: assignment.institutionId } }) : null;
+    let definition: ReturnType<typeof validateDefinition> | null = null;
+    if (appliedScale) {
+      try { definition = validateDefinition({ minimumGrade: appliedScale.minimumGrade.toString(), maximumGrade: appliedScale.maximumGrade.toString(), conversionDefinition: appliedScale.conversionDefinition, roundingDefinition: appliedScale.roundingDefinition }); } catch { definition = null; }
+    }
     const [tasks, independent, enrollments] = await Promise.all([
       this.db.task.findMany({ where: { teachingAssignmentId: assignmentId }, include: { assessment: true }, orderBy: { id: 'asc' } }),
       this.db.assessment.findMany({ where: { teachingAssignmentId: assignmentId, taskId: null }, orderBy: { id: 'asc' } }),
@@ -258,7 +271,9 @@ export class ActivitiesService {
         return { activityId: activity.id, status: result?.status ?? 'PENDIENTE', earnedPoints: evaluated ? result.earnedPoints!.toString() : null, rowVersion: result?.rowVersion ?? null };
       });
       const T = O.plus(X);
-      return { enrollmentId: enrollment.id, student: { id: enrollment.student.id, givenNames: enrollment.student.givenNames, familyNames: enrollment.student.familyNames }, ordinaryPossible: D.toString(), ordinaryEarned: O.toString(), extraEarned: X.toString(), totalEarned: T.toString(), pendingCount, isPartial: pendingCount > 0, percentage: D.isZero() ? null : T.div(D).times(100).toString(), formalGrade: null, formalGradeReason: D.isZero() ? 'NO_ORDINARY_BASE' : pendingCount ? 'PENDING_RESULTS' : 'NO_VALID_SCALE', results: resultStates };
+      const percentage = D.isZero() ? null : T.div(D).times(100).toString();
+      const grade = percentage !== null && pendingCount === 0 && definition ? formalGrade(percentage, definition) : null;
+      return { enrollmentId: enrollment.id, student: { id: enrollment.student.id, givenNames: enrollment.student.givenNames, familyNames: enrollment.student.familyNames }, ordinaryPossible: D.toString(), ordinaryEarned: O.toString(), extraEarned: X.toString(), totalEarned: T.toString(), pendingCount, isPartial: pendingCount > 0, percentage, formalGrade: grade, formalGradeReason: D.isZero() ? 'NO_ORDINARY_BASE' : pendingCount ? 'PENDING_RESULTS' : grade === null ? 'NO_VALID_SCALE' : null, results: resultStates };
     });
     return { data: { assignmentId, activities, rows }, nextCursor: paged.nextCursor };
   }

@@ -11,7 +11,7 @@ import { PERMISSION_CATALOG, type PermissionCode } from './modules/authorization
 
 const describeDatabase = process.env.RUN_DATABASE_TESTS === '1' ? describe : describe.skip;
 const db = new PrismaClient();
-const config: AuthConfig = { sessionTtlMs: 28_800_000, lastSeenIntervalMs: 60_000, sessionCookieName: 'edugestor_session', csrfCookieName: 'edugestor_csrf', secureCookies: false, loginRateLimitWindowMs: 900_000, loginRateLimitMaxAttempts: 100 };
+const config: AuthConfig = { sessionTtlMs: 28_800_000, lastSeenIntervalMs: 60_000, sessionCookieName: 'edugestor_session', csrfCookieName: 'edugestor_csrf', secureCookies: false, loginRateLimitWindowMs: 900_000, loginRateLimitMaxAttempts: 100, confirmationActiveKid: 'integration', confirmationKeys: { integration: 'integration-confirmation-secret-2b2-00000001' } };
 const app = createApp(createDatabaseProbe(db), { logger: pino({ level: 'silent' }), auth: { client: db, config } });
 const suffix = randomUUID().slice(0, 8);
 let root: User, teacherA: User, teacherB: User, admin: User;
@@ -57,7 +57,7 @@ describeDatabase('B-01–B-27, checkpoint 2B-1, PostgreSQL real', () => {
     const [enrollment, otherEnrollment] = await Promise.all([db.enrollment.create({ data: { studentId: student.id, courseId, academicYearId: year.id } }), db.enrollment.create({ data: { studentId: otherStudent.id, courseId: otherCourseId, academicYearId: otherYear.id } })]);
     enrollmentId = enrollment.id; otherEnrollmentId = otherEnrollment.id;
     const roleId = (await db.role.create({ data: { code: `B-${suffix}`, name: 'B' } })).id;
-    const codes: PermissionCode[] = ['activity-bank.read', 'activity-bank.manage', 'task.read', 'task.manage', 'assessment.read', 'assessment.manage', 'assessment-result.read', 'assessment-result.manage', 'enrollment.read', 'student.read'];
+    const codes: PermissionCode[] = ['activity-bank.read', 'activity-bank.manage', 'task.read', 'task.manage', 'assessment.read', 'assessment.manage', 'assessment-result.read', 'assessment-result.manage', 'enrollment.read', 'student.read', 'grading-scale.read', 'grading-scale.manage', 'teaching-assignment.read', 'teaching-assignment.manage'];
     await grant(teacherA, institutionId, roleId, codes); await grant(teacherA, otherInstitutionId, roleId, codes);
     await grant(teacherB, institutionId, roleId, codes); await grant(admin, institutionId, roleId, codes);
     const [aAuth, bAuth, adminAuth] = await Promise.all([auth(teacherA), auth(teacherB), auth(admin)]);
@@ -191,10 +191,56 @@ describeDatabase('B-01–B-27, checkpoint 2B-1, PostgreSQL real', () => {
     expect(process.body.data.rows[0].formalGrade).toBeNull();
   });
 
+  it('B-07/09/16/17/18/21: escala versionada y cambios confirmados preservan resultados', async () => {
+    const teacher = await db.teacher.findUniqueOrThrow({ where: { userId: teacherA.id } });
+    const subject = await db.subject.create({ data: { institutionId, name: `Escala ${suffix}`, nameNormalized: `escala-${suffix}` } });
+    const assignment = await db.teachingAssignment.create({ data: { teacherId: teacher.id, institutionId, courseId, subjectId: subject.id } });
+    const path = `/api/v1/teaching-assignments/${assignment.id}`;
+    const scalePath = `/api/v1/institutions/${institutionId}/grading-scales`;
+    const definition = (top: string) => ({ minimumGrade: '1', maximumGrade: top, conversionDefinition: { schemaVersion: 1, kind: 'PERCENTAGE_BANDS', bands: [{ fromPercent: '0', grade: '1' }, { fromPercent: '60', grade: '3' }, { fromPercent: '90', grade: top }] }, roundingDefinition: { schemaVersion: 1, kind: 'NONE' } });
+    const scale = await post(scalePath, { name: `Escala ${suffix}`, version: 1, ...definition('5') });
+    expect(scale.status).toBe(201);
+    expect((await post(scalePath, { name: `Inválida ${suffix}`, version: 1, ...definition('5'), conversionDefinition: { schemaVersion: 1, kind: 'PERCENTAGE_BANDS', bands: [{ fromPercent: '1', grade: '1' }] } })).status).toBe(422);
+    const task = await post(`${path}/tasks`, newTask('Base 2B-2', '20'));
+    const extra = await post(`${path}/tasks`, newTask('Adicional 2B-2', '3', 'FUERA_DE_ESCALA'));
+    expect((await put(`${path}/tasks/${task.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '20', expectedVersion: null, expectedTaskVersion: 1 })).status).toBe(201);
+    expect((await put(`${path}/tasks/${extra.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '3', expectedVersion: null, expectedTaskVersion: 1 })).status).toBe(201);
+    expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ percentage: '115', formalGrade: null, formalGradeReason: 'NO_VALID_SCALE' });
+    const preview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: scale.body.data.id, expectedAssignmentVersion: 1 });
+    expect(preview.status).toBe(200);
+    expect((await get(`${path}/grading-scale`, bCookie)).status).toBe(404);
+    const apply = await put(`${path}/grading-scale`, { newGradingScaleId: scale.body.data.id, expectedAssignmentVersion: 1, confirmationToken: preview.body.data.confirmationToken });
+    expect(apply.status).toBe(200);
+    expect((await put(`${path}/grading-scale`, { newGradingScaleId: scale.body.data.id, expectedAssignmentVersion: 1, confirmationToken: preview.body.data.confirmationToken })).status).toBe(409);
+    expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ percentage: '115', formalGrade: '5', formalGradeReason: null });
+    expect((await db.gradingScale.findUniqueOrThrow({ where: { id: scale.body.data.id } })).lockedAt).not.toBeNull();
+    await expect(db.gradingScale.update({ where: { id: scale.body.data.id }, data: { maximumGrade: '6' } })).rejects.toThrow();
+    await expect(db.gradingScale.update({ where: { id: scale.body.data.id }, data: { lockedAt: null } })).rejects.toThrow();
+    const next = await post(`${scalePath}/${scale.body.data.id}/versions`, { version: 2, expectedVersion: 1, ...definition('4') });
+    expect(next.status).toBe(201);
+    const stalePreview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: next.body.data.id, expectedAssignmentVersion: 2 });
+    expect(stalePreview.status).toBe(200);
+    expect((await put(`${path}/tasks/${task.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '19', expectedVersion: 1, expectedTaskVersion: 1 })).status).toBe(200);
+    expect((await put(`${path}/grading-scale`, { newGradingScaleId: next.body.data.id, expectedAssignmentVersion: 2, confirmationToken: stalePreview.body.data.confirmationToken })).status).toBe(409);
+    const freshPreview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: next.body.data.id, expectedAssignmentVersion: 2 });
+    expect((await put(`${path}/grading-scale`, { newGradingScaleId: next.body.data.id, expectedAssignmentVersion: 2, confirmationToken: freshPreview.body.data.confirmationToken })).status).toBe(200);
+    expect((await get(`${path}/process`)).body.data.rows[0].formalGrade).toBe('4');
+    const maxPreview = await post(`${path}/tasks/${task.body.data.id}/max-points/preview`, { newMaxPoints: '10', expectedVersion: 1 });
+    expect(maxPreview.status).toBe(200);
+    expect(maxPreview.body.data.warnings.length).toBeGreaterThan(0);
+    expect((await request(app).patch(`${path}/tasks/${task.body.data.id}/max-points`).set('Cookie', aCookie).set('x-csrf-token', aCsrf).send({ newMaxPoints: '10', expectedVersion: 1 })).body.error.code).toBe('CONFIRMATION_REQUIRED');
+    expect((await request(app).patch(`${path}/tasks/${task.body.data.id}/max-points`).set('Cookie', aCookie).set('x-csrf-token', aCsrf).send({ newMaxPoints: '10', expectedVersion: 1, confirmationToken: maxPreview.body.data.confirmationToken })).status).toBe(200);
+    expect((await db.assessmentResult.findFirstOrThrow({ where: { assessment: { taskId: task.body.data.id } } })).earnedPoints?.toString()).toBe('19');
+    expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ ordinaryPossible: '10', percentage: '220', formalGrade: '4' });
+    expect((await put(`${path}/tasks/${task.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '11', expectedVersion: 2, expectedTaskVersion: 2 })).status).toBe(422);
+    expect(await db.auditLog.count({ where: { entityId: assignment.id, action: 'teaching-assignment.grading-scale.change' } })).toBe(2);
+  });
+
   it('B-22: permisos nuevos independientes y sin concesiones al demo', async () => {
     const newCodes = ['activity-bank.read', 'activity-bank.manage', 'task.read', 'task.manage', 'assessment.read', 'assessment.manage', 'assessment-result.read', 'assessment-result.manage'];
     expect(PERMISSION_CATALOG.slice(0, 21)).toHaveLength(21);
-    expect(PERMISSION_CATALOG.slice(21).map(item => item.code)).toEqual(newCodes);
+    expect(PERMISSION_CATALOG.slice(21, 29).map(item => item.code)).toEqual(newCodes);
+    expect(PERMISSION_CATALOG.slice(29).map(item => item.code)).toEqual(['grading-scale.read', 'grading-scale.manage']);
     expect(await db.roleAssignmentPermission.count({ where: { assignment: { role: { code: 'HITO1_DEMO_INSTITUTION_ADMIN' } }, permission: { code: { in: newCodes } } } })).toBe(0);
     const grant = await db.roleAssignmentPermission.findFirstOrThrow({ where: { assignment: { userId: teacherB.id }, permission: { code: 'task.manage' } } });
     await db.roleAssignmentPermission.update({ where: { id: grant.id }, data: { revokedAt: new Date() } });
