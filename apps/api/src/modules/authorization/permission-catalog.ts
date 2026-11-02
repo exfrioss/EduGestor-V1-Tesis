@@ -37,6 +37,8 @@ export const PERMISSION_CATALOG = [
   { code: 'assessment.manage', description: 'Administrar evaluaciones de asignaciones propias' },
   { code: 'assessment-result.read', description: 'Consultar resultados de evaluaciones propias' },
   { code: 'assessment-result.manage', description: 'Cargar y corregir resultados de evaluaciones propias' },
+  { code: 'grading-scale.read', description: 'Consultar escalas de calificación institucionales' },
+  { code: 'grading-scale.manage', description: 'Administrar versiones de escalas de calificación' },
 ] as const;
 
 export const HITO1_PERMISSION_CODES = [

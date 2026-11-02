@@ -2,7 +2,7 @@
 
 ## Matriz prevista — Hito 2B Tareas, Evaluaciones y Proceso (06/10/2026)
 
-**Estado: los subcasos 2B-1 se ejecutaron el 06/10/2026; 2B-2 sigue pendiente.** Los IDs son identificadores de prueba, no RF/RNF nuevos. `2B-1` = banco, tarea, evaluación, resultado, Proceso sin nota; `2B-2` = escala, conversión/redondeo, cambios confirmados y nota. Contratos completos en [API.md](../architecture/API.md), decisión [ACAD-2B-01](../architecture/DECISIONS.md). Los casos de integridad/concurrencia se probaron en PostgreSQL real; la suite ordinaria omite intencionalmente las pruebas DB.
+**Estado: 2B-1 ejecutado el 06/10/2026 y 2B-2 ejecutado el 02/11/2026.** Los IDs son identificadores de prueba, no RF/RNF nuevos. `2B-1` = banco, tarea, evaluación, resultado, Proceso sin nota; `2B-2` = escala, conversión/redondeo, cambios confirmados y nota. Contratos completos en [API.md](../architecture/API.md), decisión [ACAD-2B-01](../architecture/DECISIONS.md). Las pruebas DB se ejecutaron en PostgreSQL aislado; la suite ordinaria las omite si `RUN_DATABASE_TESTS` no está definido.
 
 | Caso | Checkpoint / nivel | Subcasos y resultado verificable |
 |---|---|---|
@@ -35,6 +35,20 @@
 | B-27 | 2B-1 y 2B-2 regresión real | Student/Enrollment de 2A, cédula única/contexto, curso → Estudiantes y Materia → Perfiles de Alumnos intactos; resultado solo para matrícula compatible y sin fuga de otras instituciones. |
 
 **Subcasos contractuales obligatorios:** en B-08 y B-24, ausencia de resultado y `PENDIENTE` provocan `isPartial=true`, `formalGrade=null` aunque exista escala; completar la última actividad elegible recalcula. En B-09 se prueban `NONE`, `DECIMAL_PLACES` y definición incompleta sin emitir nota. En B-16–B-18 y B-21 se ensayan token ligado a actor/sesión/recurso/versiones/valores/contextDigest, caducidad de cinco minutos, snapshots cambiantes, confirmación repetida, respuesta genérica y `AuditLog` transaccional; no hay almacenamiento en memoria por instancia. En B-10/B-12, usar carreras reales PostgreSQL. Registrar casos aprobados, fallidos y omitidos por checkpoint; repetir Hito 1/currículo/2A con la base/migraciones nuevas y E2E real. Ningún resultado histórico de Hito 2A equivale a ejecución de esta matriz.
+
+### Ejecución de 2B-2 — 02/11/2026
+
+En la base temporal `edugestor_hito2b2_codex_1102` se aplicaron desde cero las ocho migraciones. `prisma validate/generate` aprobaron. La suite API completa con `RUN_DATABASE_TESTS=1` aprobó **103/103 pruebas en 16 archivos**, incluidos Hito 1, currículo, 2A y 2B. La suite web aprobó **15/15**; typecheck y build de los tres paquetes aprobaron.
+
+| Casos | Evidencia 2B-2 |
+|---|---|
+| B-07/B-08/B-09 | Unitarias de dos escalas y bordes/JSON/redondeo; integración de D=20, T=23, 115 % y nota máxima tras aplicar escala, además de razón sin escala y reglas de parcialidad/D=0 de 2B-1. |
+| B-16/B-17 | Integración de preview, confirmación obligatoria, reducción de máximo con sobrepaso histórico conservado, nuevo máximo en Proceso y rechazo de corrección que lo excede. |
+| B-18 | Unitarias de firma, actor/sesión, digest, versión, caducidad y rotación de `kid`; integración de snapshot obsoleto y segundo uso rechazado. |
+| B-21/B-22 | Integración de versión usada bloqueada en PostgreSQL, creación de versión nueva, cambio explícito de FK, aislamiento por asignación, catálogo de 31 permisos y auditoría de ambos cambios. |
+| B-23/B-24 | RTL del flujo preview/cancelar/confirmar máximo; UI de escala/nota y Proceso compilada y regresión de Proceso parcial en RTL. |
+
+**Validación adicional del 02/11/2026 — dos instancias y E2E real:** `e2e/grading-real.spec.ts` aprobó **1/1** en Playwright/Chrome contra dos procesos Node API distintos, Vite/React y la misma base PostgreSQL temporal `edugestor_hito2b2_validation_1102`, migrada desde cero con las ocho migraciones. Ambos procesos recibieron en memoria la misma `CONFIRMATION_HMAC_KEYS` y `CONFIRMATION_ACTIVE_KID`, generadas para la prueba. A emitió preview/token; B lo confirmó y escribió el máximo; A leyó el valor nuevo desde PostgreSQL. Repetir el token devolvió `409 STALE_VERSION`. Tres previews adicionales quedaron obsoletas tras cambiar respectivamente un `AssessmentResult`, agregar una `Enrollment` y agregar una `Task`; B devolvió `409 STALE_PREVIEW` en los tres casos y el máximo siguió intacto. Los PID distintos y la aceptación cruzada verifican que el token no requiere memoria local del proceso emisor. La captura de stdout/stderr de ambos procesos API y Vite no contenía ni la clave ni ninguno de los seis tokens observados (preview inicial, tres obsoletos y dos de UI). El mismo E2E creó/aplicó una escala desde el navegador, mostró nota formal `5`, confirmó el aumento del máximo `20 → 40` y mostró base `40` y nota formal `1`. La primera ejecución falló por esperar navegación a «Mis asignaciones» pese al permiso institucional del fixture; la segunda, por un selector de `<dt>/<dd>`. Se corrigieron solo las expectativas/selector de la prueba y las dos ejecuciones finales aprobaron **1/1** cada una. La base de desarrollo conserva siete migraciones hasta su despliegue deliberado.
 
 ### Ejecución de 2B-1 — 06/10/2026
 

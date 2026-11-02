@@ -1,5 +1,12 @@
 # Changelog
 
+## 02/11/2026 — Hito 2B-2 implementado
+
+- La octava migración añade `GradingScale`, la referencia institucional nullable en `TeachingAssignment`, unicidad de versión y protección de versiones usadas. Ajusta los triggers de 2B-1 para permitir cambios de máximo solo dentro de la transacción confirmada.
+- El catálogo suma `grading-scale.read/manage` (31 permisos en total), sin grants demo. La API valida JSON v1 y decimales canónicos, conserva versiones, convierte y redondea notas formales solo con base ordinaria y sin pendientes.
+- Las rutas de escala y máximo presentan proyecciones antes/después y exigen token HMAC ligado a actor, sesión, recurso, versiones y digest del contexto. La confirmación reautoriza, verifica snapshot y audita sin cambiar puntajes históricos. La UI muestra nota formal, configuración de escala y confirmación/cancelación de cambios.
+- Validación: ocho migraciones desde una base PostgreSQL temporal vacía, 103/103 pruebas API con DB real, 15/15 pruebas web, `prisma validate/generate`, typecheck y build. No se aplicó la migración a la base de desarrollo. No hubo commit, merge ni tag.
+
 ## 06/10/2026 — Hito 2B-1 implementado
 
 - Se añadieron cuatro modelos y la migración `20261006120000_hito2b1_tasks_assessments` con CHECK, UNIQUE, FK restrictivas y triggers de contexto de tarea, evaluación, resultado y matrícula; las seis migraciones previas se conservaron.

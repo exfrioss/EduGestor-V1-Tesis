@@ -1,6 +1,15 @@
 # EduGestor V1.0 — Contexto de continuidad
 
-## CHECKPOINT IMPLEMENTADO — Hito 2B-1 Tareas, Evaluaciones y Proceso
+## CHECKPOINT IMPLEMENTADO — Hito 2B-2 Escala y confirmaciones
+
+**Fecha:** 02/11/2026. **Rama:** `feat/hito2b-grading-scale`. **Estado:** implementación validada sin commit, merge ni tag.
+
+- La migración `20261102120000_hito2b2_grading_scale` agrega `GradingScale` y `TeachingAssignment.gradingScaleId` con FK institucional, unicidad por nombre/versión, límites y protección de versiones usadas. Los triggers de máximo requieren una marca local a la transacción confirmada cuando existen resultados.
+- El catálogo pasa de 29 a 31 permisos con `grading-scale.read/manage`, sin modificar grants demo. La API ofrece versiones inmutables, JSON v1, conversión/redondeo Decimal, nota formal condicionada, previews y confirmaciones con HMAC de cinco minutos, reautorización, digest del contexto y auditoría transaccional.
+- El portal docente ofrece configurar y aplicar versiones, mostrar nota formal y confirmar o cancelar cambios de máximo/escala con advertencias. La clave compartida se configura con `CONFIRMATION_HMAC_KEYS` y `CONFIRMATION_ACTIVE_KID`; no hay valor por defecto.
+- Evidencia: ocho migraciones aplicadas desde cero en PostgreSQL temporal, 103/103 pruebas API con DB, 15/15 pruebas web, `prisma validate/generate`, typecheck y build. La base de desarrollo no recibió migraciones. Los módulos posteriores a 2B no se implementaron.
+
+## CHECKPOINT HISTÓRICO — Hito 2B-1 Tareas, Evaluaciones y Proceso
 
 **Fecha:** 06/10/2026. **Rama:** `feat/hito2b-tasks-assessments`. **Estado:** implementación 2B-1 validada sin commit, tag ni merge. El contrato 2B-2 sigue pendiente.
 

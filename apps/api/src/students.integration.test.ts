@@ -264,7 +264,7 @@ describeDatabase('STU-01 a STU-22 — Student y Enrollment con PostgreSQL real',
   });
 
   it('STU-26: conserva 17 permisos previos y el demo no recibe los cuatro nuevos', async () => {
-    expect(PERMISSION_CATALOG).toHaveLength(29);
+    expect(PERMISSION_CATALOG).toHaveLength(31);
     const demoGrants = await db.roleAssignmentPermission.count({ where: {
       assignment: { role: { code: 'HITO1_DEMO_INSTITUTION_ADMIN' } },
       permission: { code: { in: ['student.read', 'student.manage', 'enrollment.read', 'enrollment.manage'] } },

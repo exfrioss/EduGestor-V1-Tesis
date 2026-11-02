@@ -459,7 +459,7 @@ Quedan expresamente fuera: tareas, banco de actividades, evaluaciones, calificac
 
 ## Contratos aprobados — Hito 2B: tareas, evaluaciones y Proceso (06/10/2026)
 
-**Estado: 2B-1 implementado y validado el 06/10/2026; 2B-2 pendiente.** Concreta RF-009 a RF-014 y D-01/D-03 sin crear RF/RNF. El primer checkpoint incorpora banco, tareas, evaluaciones, resultados, permisos y Proceso sin nota formal. El segundo incorporará escala, definiciones JSON, conversión/redondeo, cambios de máximo y escala con preview/confirmación y nota formal. `schema.prisma` contiene los cuatro modelos de 2B-1; `GradingScale` y `TeachingAssignment.gradingScaleId` siguen ausentes.
+**Estado: 2B-1 validado el 06/10/2026; 2B-2 implementado y validado en base aislada el 02/11/2026.** Concreta RF-009 a RF-014 y D-01/D-03 sin crear RF/RNF. El primer checkpoint incorpora banco, tareas, evaluaciones, resultados, permisos y Proceso sin nota formal. El segundo incorpora escala, definiciones JSON, conversión/redondeo, cambios de máximo y escala con preview/confirmación y nota formal. `schema.prisma` contiene los cinco modelos y `TeachingAssignment.gradingScaleId`.
 
 ### Permisos y alcance efectivo
 
