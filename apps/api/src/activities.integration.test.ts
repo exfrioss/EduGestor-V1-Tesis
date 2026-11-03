@@ -35,6 +35,7 @@ const auth = async (user: User) => {
 };
 const post = (path: string, body: unknown, cookie = aCookie, csrf = aCsrf) => request(app).post(path).set('Cookie', cookie).set('x-csrf-token', csrf).send(body);
 const put = (path: string, body: unknown, cookie = aCookie, csrf = aCsrf) => request(app).put(path).set('Cookie', cookie).set('x-csrf-token', csrf).send(body);
+const patch = (path: string, body: unknown, cookie = aCookie, csrf = aCsrf) => request(app).patch(path).set('Cookie', cookie).set('x-csrf-token', csrf).send(body);
 const get = (path: string, cookie = aCookie) => request(app).get(path).set('Cookie', cookie);
 const newTask = (title: string, maxPoints = '20', scoringKind = 'ORDINARIA') => ({ title, description: 'Contenido original', maxPoints, scoringKind });
 
@@ -234,6 +235,131 @@ describeDatabase('B-01–B-27, checkpoint 2B-1, PostgreSQL real', () => {
     expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ ordinaryPossible: '10', percentage: '220', formalGrade: '4' });
     expect((await put(`${path}/tasks/${task.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '11', expectedVersion: 2, expectedTaskVersion: 2 })).status).toBe(422);
     expect(await db.auditLog.count({ where: { entityId: assignment.id, action: 'teaching-assignment.grading-scale.change' } })).toBe(2);
+  });
+
+  it('B-17/18: Task sin resultados, carrera con la primera captura y Assessment independiente/vinculada', async () => {
+    const teacher = await db.teacher.findUniqueOrThrow({ where: { userId: teacherA.id } });
+    const subject = await db.subject.create({ data: { institutionId, name: `Máximos ${suffix}`, nameNormalized: `maximos-${suffix}` } });
+    const assignment = await db.teachingAssignment.create({ data: { teacherId: teacher.id, institutionId, courseId, subjectId: subject.id } });
+    const path = `/api/v1/teaching-assignments/${assignment.id}`;
+    const task = await post(`${path}/tasks`, newTask('Sin resultados', '20'));
+    const taskPath = `${path}/tasks/${task.body.data.id}/max-points`;
+    const direct = await patch(taskPath, { newMaxPoints: '18', expectedVersion: 1 });
+    expect(direct.status).toBe(200);
+    expect(direct.body.data).toMatchObject({ maxPoints: '18', rowVersion: 2 });
+    expect(await db.assessmentResult.count({ where: { assessment: { taskId: task.body.data.id } } })).toBe(0);
+
+    const racingTask = await post(`${path}/tasks`, newTask('Primera captura', '20'));
+    const racingPath = `${path}/tasks/${racingTask.body.data.id}/max-points`;
+    const resultPath = `${path}/tasks/${racingTask.body.data.id}/results/${enrollmentId}`;
+    const [change, firstResult] = await Promise.all([
+      patch(racingPath, { newMaxPoints: '10', expectedVersion: 1 }),
+      put(resultPath, { status: 'EVALUADO', earnedPoints: '7', expectedVersion: null, expectedTaskVersion: 1 }),
+    ]);
+    expect([change.status, firstResult.status].filter(status => status < 300)).toHaveLength(1);
+    expect([change.status, firstResult.status].filter(status => status === 409)).toHaveLength(1);
+    const finalTask = await db.task.findUniqueOrThrow({ where: { id: racingTask.body.data.id } });
+    const resultCount = await db.assessmentResult.count({ where: { assessment: { taskId: racingTask.body.data.id } } });
+    expect([finalTask.maxPoints.toString(), resultCount]).toEqual(change.status === 200 ? ['10', 0] : ['20', 1]);
+
+    const independent = await post(`${path}/assessments`, { title: 'Independiente', standaloneMaxPoints: '8', standaloneScoringKind: 'ORDINARIA' });
+    const independentChange = await patch(`${path}/assessments/${independent.body.data.id}/max-points`, { newMaxPoints: '12', expectedVersion: 1 });
+    expect(independentChange.status).toBe(200);
+    expect(independentChange.body.data).toMatchObject({ maxPoints: '12', rowVersion: 2 });
+    expect((await put(`${path}/assessments/${independent.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '6', expectedVersion: null })).status).toBe(201);
+    const independentPreview = await post(`${path}/assessments/${independent.body.data.id}/max-points/preview`, { newMaxPoints: '7', expectedVersion: 2 });
+    expect(independentPreview.status).toBe(200);
+    const confirmedIndependent = await patch(`${path}/assessments/${independent.body.data.id}/max-points`, { newMaxPoints: '7', expectedVersion: 2, confirmationToken: independentPreview.body.data.confirmationToken });
+    expect(confirmedIndependent.status).toBe(200);
+    expect((await db.assessmentResult.findFirstOrThrow({ where: { assessmentId: independent.body.data.id } })).earnedPoints?.toString()).toBe('6');
+    const linked = await post(`${path}/assessments`, { title: 'Vinculada', taskId: task.body.data.id });
+    expect(linked.status).toBe(201);
+    expect((await post(`${path}/assessments/${linked.body.data.id}/max-points/preview`, { newMaxPoints: '12', expectedVersion: 1 })).status).toBe(422);
+    expect((await patch(`${path}/assessments/${linked.body.data.id}/max-points`, { newMaxPoints: '12', expectedVersion: 1 })).status).toBe(422);
+  });
+
+  it('B-09: la API rechaza cada variante inválida del JSON de escala', async () => {
+    const valid = { minimumGrade: '1', maximumGrade: '5', conversionDefinition: { schemaVersion: 1, kind: 'PERCENTAGE_BANDS', bands: [{ fromPercent: '0', grade: '1' }, { fromPercent: '60', grade: '3' }] }, roundingDefinition: { schemaVersion: 1, kind: 'NONE' } };
+    const oversized = { ...valid.conversionDefinition, bands: Array.from({ length: 350 }, (_, index) => ({ fromPercent: index === 0 ? '0' : `0.${String(index).padStart(6, '0')}`, grade: '999999999999.123456' })) };
+    expect(Buffer.byteLength(JSON.stringify(oversized), 'utf8')).toBeGreaterThan(16 * 1024);
+    const cases = [
+      ['JSON mayor que 16 KiB', oversized],
+      ['schemaVersion desconocido', { ...valid.conversionDefinition, schemaVersion: 2 }],
+      ['kind desconocido', { ...valid.conversionDefinition, kind: 'LINEAR' }],
+      ['definición incompleta', { schemaVersion: 1, kind: 'PERCENTAGE_BANDS' }],
+      ['precisión excesiva', { ...valid.conversionDefinition, bands: [{ fromPercent: '0', grade: '1.1234567' }] }],
+      ['bandas duplicadas', { ...valid.conversionDefinition, bands: [{ fromPercent: '0', grade: '1' }, { fromPercent: '0', grade: '3' }] }],
+      ['bandas fuera de orden', { ...valid.conversionDefinition, bands: [{ fromPercent: '0', grade: '1' }, { fromPercent: '60', grade: '3' }, { fromPercent: '50', grade: '5' }] }],
+    ] as const;
+    for (const [name, conversionDefinition] of cases) {
+      const response = await post(`/api/v1/institutions/${institutionId}/grading-scales`, { name: `B09 ${name} ${suffix}`, version: 1, ...valid, conversionDefinition });
+      expect(response.status, name).toBe(422);
+      expect(response.body.error.code, name).toBe('INVALID_SCALE_DEFINITION');
+    }
+  });
+
+  it('B-17/18/21: permiso revocado, carrera de máximo, excedente histórico y auditoría concreta', async () => {
+    const teacher = await db.teacher.findUniqueOrThrow({ where: { userId: teacherA.id } });
+    const subject = await db.subject.create({ data: { institutionId, name: `Confirmar ${suffix}`, nameNormalized: `confirmar-${suffix}` } });
+    const assignment = await db.teachingAssignment.create({ data: { teacherId: teacher.id, institutionId, courseId, subjectId: subject.id } });
+    const path = `/api/v1/teaching-assignments/${assignment.id}`;
+    const task = await post(`${path}/tasks`, newTask('Confirmada', '20'));
+    const taskPath = `${path}/tasks/${task.body.data.id}/max-points`;
+    expect((await put(`${path}/tasks/${task.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '15', expectedVersion: null, expectedTaskVersion: 1 })).status).toBe(201);
+    const preview = await post(`${taskPath}/preview`, { newMaxPoints: '10', expectedVersion: 1 });
+    expect(preview.status).toBe(200);
+    expect(preview.body.data.warnings).toContain('1 resultados históricos superan el nuevo máximo');
+    const grant = await db.roleAssignmentPermission.findFirstOrThrow({ where: { assignment: { userId: teacherA.id, scope: { institutionId } }, permission: { code: 'task.manage' }, revokedAt: null } });
+    await db.roleAssignmentPermission.update({ where: { id: grant.id }, data: { revokedAt: new Date() } });
+    try {
+      const denied = await patch(taskPath, { newMaxPoints: '10', expectedVersion: 1, confirmationToken: preview.body.data.confirmationToken });
+      expect(denied.status).toBe(403);
+      expect((await db.task.findUniqueOrThrow({ where: { id: task.body.data.id } })).maxPoints.toString()).toBe('20');
+    } finally {
+      await db.roleAssignmentPermission.update({ where: { id: grant.id }, data: { revokedAt: null } });
+    }
+    const previewA = await post(`${taskPath}/preview`, { newMaxPoints: '10', expectedVersion: 1 });
+    const previewB = await post(`${taskPath}/preview`, { newMaxPoints: '12', expectedVersion: 1 });
+    const [changeA, changeB] = await Promise.all([
+      patch(taskPath, { newMaxPoints: '10', expectedVersion: 1, confirmationToken: previewA.body.data.confirmationToken }),
+      patch(taskPath, { newMaxPoints: '12', expectedVersion: 1, confirmationToken: previewB.body.data.confirmationToken }),
+    ]);
+    expect([changeA.status, changeB.status].sort()).toEqual([200, 409]);
+    const winner = changeA.status === 200 ? '10' : '12';
+    expect((await db.task.findUniqueOrThrow({ where: { id: task.body.data.id } })).maxPoints.toString()).toBe(winner);
+    expect((await db.assessmentResult.findFirstOrThrow({ where: { assessment: { taskId: task.body.data.id } } })).earnedPoints?.toString()).toBe('15');
+    const logs = await db.auditLog.findMany({ where: { action: 'task.max-points.change', entityType: 'Task', entityId: task.body.data.id } });
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatchObject({ actorUserId: teacherA.id, institutionId, beforeData: { maxPoints: '20' }, afterData: { maxPoints: winner }, details: { affectedCount: 1, overLimitCount: 1 } });
+  });
+
+  it('B-07/16/21: escala ajena, D=0, pendientes e integridad histórica tras retirar la referencia', async () => {
+    const teacher = await db.teacher.findUniqueOrThrow({ where: { userId: teacherA.id } });
+    const subject = await db.subject.create({ data: { institutionId, name: `Historia ${suffix}`, nameNormalized: `historia-${suffix}` } });
+    const assignment = await db.teachingAssignment.create({ data: { teacherId: teacher.id, institutionId, courseId, subjectId: subject.id } });
+    const path = `/api/v1/teaching-assignments/${assignment.id}`;
+    const definition = { minimumGrade: '1', maximumGrade: '5', conversionDefinition: { schemaVersion: 1, kind: 'PERCENTAGE_BANDS', bands: [{ fromPercent: '0', grade: '1' }, { fromPercent: '60', grade: '3' }] }, roundingDefinition: { schemaVersion: 1, kind: 'NONE' } };
+    const foreign = await post(`/api/v1/institutions/${otherInstitutionId}/grading-scales`, { name: `Ajena ${suffix}`, version: 1, ...definition });
+    const local = await post(`/api/v1/institutions/${institutionId}/grading-scales`, { name: `Histórica ${suffix}`, version: 1, ...definition });
+    expect([foreign.status, local.status]).toEqual([201, 201]);
+    const foreignPreview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: foreign.body.data.id, expectedAssignmentVersion: 1 });
+    expect(foreignPreview.status).toBe(422);
+    expect(foreignPreview.body.error.code).toBe('INVALID_REFERENCE');
+    const extra = await post(`${path}/assessments`, { title: 'Solo extra', standaloneMaxPoints: '3', standaloneScoringKind: 'FUERA_DE_ESCALA' });
+    expect((await put(`${path}/assessments/${extra.body.data.id}/results/${enrollmentId}`, { status: 'EVALUADO', earnedPoints: '2', expectedVersion: null })).status).toBe(201);
+    const applyPreview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: local.body.data.id, expectedAssignmentVersion: 1 });
+    expect((await put(`${path}/grading-scale`, { newGradingScaleId: local.body.data.id, expectedAssignmentVersion: 1, confirmationToken: applyPreview.body.data.confirmationToken })).status).toBe(200);
+    expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ ordinaryPossible: '0', pendingCount: 0, formalGrade: null, formalGradeReason: 'NO_ORDINARY_BASE' });
+    const ordinary = await post(`${path}/tasks`, newTask('Pendiente', '10'));
+    expect(ordinary.status).toBe(201);
+    expect((await get(`${path}/process`)).body.data.rows[0]).toMatchObject({ ordinaryPossible: '10', pendingCount: 1, formalGrade: null, formalGradeReason: 'PENDING_RESULTS' });
+    const removePreview = await post(`${path}/grading-scale/change-preview`, { newGradingScaleId: null, expectedAssignmentVersion: 2 });
+    expect((await put(`${path}/grading-scale`, { newGradingScaleId: null, expectedAssignmentVersion: 2, confirmationToken: removePreview.body.data.confirmationToken })).status).toBe(200);
+    expect((await db.teachingAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).gradingScaleId).toBeNull();
+    const historical = await db.gradingScale.findUniqueOrThrow({ where: { id: local.body.data.id } });
+    expect(historical.lockedAt).not.toBeNull();
+    await expect(db.$executeRaw`DELETE FROM "GradingScale" WHERE "id" = ${historical.id}::uuid`).rejects.toThrow();
+    expect(await db.gradingScale.findUniqueOrThrow({ where: { id: historical.id } })).toMatchObject({ id: historical.id, version: historical.version, lockedAt: historical.lockedAt, rowVersion: historical.rowVersion });
   });
 
   it('B-22: permisos nuevos independientes y sin concesiones al demo', async () => {

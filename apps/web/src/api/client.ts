@@ -85,6 +85,10 @@ const statusMessages: Record<number, string> = {
 
 export const friendlyError = (error: unknown): string => {
   if (!(error instanceof ApiError)) return 'No se pudo conectar con EduGestor.';
-  const message = statusMessages[error.status] ?? error.message;
+  const message = error.code === 'CONFIRMATION_EXPIRED'
+    ? 'La confirmación venció. Genera una nueva vista previa.'
+    : error.code === 'STALE_PREVIEW'
+      ? 'Los datos cambiaron desde la vista previa. Revísalos y genera una nueva confirmación.'
+      : statusMessages[error.status] ?? error.message;
   return error.requestId ? `${message} (Solicitud ${error.requestId})` : message;
 };

@@ -18,13 +18,17 @@ export type Definition = { minimumGrade: string; maximumGrade: string; conversio
 export const invalidScale = () => new AppError(422, 'INVALID_SCALE_DEFINITION', 'Definición de escala inválida');
 
 export function validateDefinition(value: { minimumGrade: unknown; maximumGrade: unknown; conversionDefinition: unknown; roundingDefinition: unknown }): Definition {
+  for (const jsonValue of [value.conversionDefinition, value.roundingDefinition]) {
+    const serialized = JSON.stringify(jsonValue);
+    if (serialized && Buffer.byteLength(serialized, 'utf8') > 16384) throw invalidScale();
+  }
   const minimumGrade = gradeString.safeParse(value.minimumGrade);
   const maximumGrade = gradeString.safeParse(value.maximumGrade);
   const conversionDefinition = conversion.safeParse(value.conversionDefinition);
   const roundingDefinition = rounding.safeParse(value.roundingDefinition);
   if (!minimumGrade.success || !maximumGrade.success || !conversionDefinition.success || !roundingDefinition.success) throw invalidScale();
   const min = minimumGrade.data, max = maximumGrade.data, bands = conversionDefinition.data.bands;
-  if (Buffer.byteLength(JSON.stringify(value.conversionDefinition), 'utf8') > 16384 || Buffer.byteLength(JSON.stringify(value.roundingDefinition), 'utf8') > 16384 || !canonical(min) || !canonical(max) || decimal(min).greaterThan(max)) throw invalidScale();
+  if (!canonical(min) || !canonical(max) || decimal(min).greaterThan(max)) throw invalidScale();
   if (bands[0]!.fromPercent !== '0') throw invalidScale();
   let previousPercent: Prisma.Decimal | null = null, previousGrade: Prisma.Decimal | null = null;
   for (const item of bands) {

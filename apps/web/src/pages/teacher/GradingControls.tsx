@@ -10,7 +10,7 @@ export function MaxPointsEditor({ base, kind, item, onChanged }: { base: string;
   const path = `${base}/${kind === 'task' ? 'tasks' : 'assessments'}/${item.id}/max-points`;
   const close = () => { setOpen(false); setPreview(null); setError(null); setValue(item.maxPoints); };
   const inspect = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setError(null); setBusy(true);
+    event.preventDefault(); setError(null); setPreview(null); setBusy(true);
     try { const result = await apiMutation<{ data: Preview }>(`${path}/preview`, 'POST', { newMaxPoints: value, expectedVersion: item.rowVersion }); setPreview(result.data); }
     catch (cause) { setError(cause); }
     finally { setBusy(false); }
