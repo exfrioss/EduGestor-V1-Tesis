@@ -8,11 +8,12 @@ import { PERMISSION_CATALOG } from '../apps/api/src/modules/authorization/permis
 import { hashPassword } from '../apps/api/src/security/password';
 
 const requireFromApi = createRequire(resolve(process.cwd(), 'apps/api/package.json'));
+const gradingDatabaseUrl = process.env.E2E_GRADING_DATABASE_URL ?? process.env.DATABASE_URL;
 const { AccountKind, PrismaClient, ScopeKind } = requireFromApi('@prisma/client') as {
   AccountKind: { TECHNICAL: 'TECHNICAL' }; ScopeKind: { INSTITUTION: 'INSTITUTION' };
-  PrismaClient: new () => import('../apps/api/node_modules/@prisma/client').PrismaClient;
+  PrismaClient: new (options?: { datasources?: { db?: { url?: string } } }) => import('../apps/api/node_modules/@prisma/client').PrismaClient;
 };
-const db = new PrismaClient();
+const db = new PrismaClient({ datasources: { db: { url: gradingDatabaseUrl } } });
 const suffix = randomUUID().slice(0, 8);
 const login = `grading.e2e.${suffix}`, password = `G-${randomUUID()}`;
 const secret = randomBytes(48).toString('base64url'), keyJson = JSON.stringify({ cross_instance: secret });
@@ -43,7 +44,7 @@ async function ready(url: string) {
 const base = (assignmentId: string) => `/api/v1/teaching-assignments/${assignmentId}`;
 
 test.beforeAll(async () => {
-  if (!process.env.DATABASE_URL?.includes('edugestor_hito2b2_validation_')) throw new Error('El E2E exige una base PostgreSQL temporal exclusiva');
+  if (!gradingDatabaseUrl?.includes('edugestor_hito2b2_validation_') || gradingDatabaseUrl === process.env.DATABASE_URL && process.env.E2E_GRADING_DATABASE_URL) throw new Error('El E2E exige una base PostgreSQL temporal exclusiva');
   const [aPort, bPort, webPort] = await Promise.all([freePort(), freePort(), freePort()]);
   apiA = `http://127.0.0.1:${aPort}`; apiB = `http://127.0.0.1:${bPort}`; web = `http://127.0.0.1:${webPort}`;
   for (const item of PERMISSION_CATALOG) await db.permission.upsert({ where: { code: item.code }, create: item, update: { description: item.description } });
@@ -83,7 +84,7 @@ test.beforeAll(async () => {
   const codes = ['institution.read', 'course.read', 'teaching-assignment.read', 'teaching-assignment.manage', 'task.read', 'task.manage', 'assessment.read', 'assessment-result.read', 'assessment-result.manage', 'enrollment.read', 'student.read', 'grading-scale.read', 'grading-scale.manage'];
   const permissions = await db.permission.findMany({ where: { code: { in: codes } } });
   await db.roleAssignmentPermission.createMany({ data: permissions.map(item => ({ roleAssignmentId: grant.id, permissionId: item.id, delegatedById: technical.id })) });
-  const shared = { DATABASE_URL: process.env.DATABASE_URL, NODE_ENV: 'test', LOG_LEVEL: 'info', CORS_ALLOWED_ORIGINS: web, CONFIRMATION_HMAC_KEYS: keyJson, CONFIRMATION_ACTIVE_KID: 'cross_instance' };
+  const shared = { DATABASE_URL: gradingDatabaseUrl, NODE_ENV: 'test', LOG_LEVEL: 'info', CORS_ALLOWED_ORIGINS: web, CONFIRMATION_HMAC_KEYS: keyJson, CONFIRMATION_ACTIVE_KID: 'cross_instance' };
   const a = launch(resolve('apps/api/dist/index.js'), [], resolve('apps/api'), { ...shared, API_PORT: String(aPort) });
   const b = launch(resolve('apps/api/dist/index.js'), [], resolve('apps/api'), { ...shared, API_PORT: String(bPort) });
   expect(a.pid).not.toBe(b.pid);

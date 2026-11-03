@@ -37,6 +37,21 @@ describe('Hito 2B-2: escalas versionadas', () => {
       expect(formalGrade('50', scale)).toBe(expected);
     }
   });
+  it.each([
+    ['schemaVersion desconocido', { ...def(), conversionDefinition: { ...def().conversionDefinition, schemaVersion: 2 } }],
+    ['kind desconocido', { ...def(), conversionDefinition: { ...def().conversionDefinition, kind: 'LINEAR' } }],
+    ['definición incompleta', { ...def(), conversionDefinition: { schemaVersion: 1, kind: 'PERCENTAGE_BANDS' } }],
+    ['precisión excesiva', def([{ fromPercent: '0', grade: '1.1234567' }])],
+    ['bandas duplicadas', def([{ fromPercent: '0', grade: '1' }, { fromPercent: '0', grade: '3' }])],
+    ['bandas fuera de orden', def([{ fromPercent: '0', grade: '1' }, { fromPercent: '60', grade: '3' }, { fromPercent: '50', grade: '5' }])],
+  ])('B-09 rechaza %s', (_case, value) => {
+    expect(() => validateDefinition(value)).toThrowError(expect.objectContaining({ code: 'INVALID_SCALE_DEFINITION' }));
+  });
+  it('B-09 rechaza JSON mayor que 16 KiB', () => {
+    const oversized = { ...def(), conversionDefinition: conversion(Array.from({ length: 350 }, (_, index) => ({ fromPercent: index === 0 ? '0' : `0.${String(index).padStart(6, '0')}`, grade: '999999999999.123456' }))) };
+    expect(Buffer.byteLength(JSON.stringify(oversized.conversionDefinition), 'utf8')).toBeGreaterThan(16 * 1024);
+    expect(() => validateDefinition(oversized)).toThrowError(expect.objectContaining({ code: 'INVALID_SCALE_DEFINITION' }));
+  });
 });
 
 const config: AuthConfig = { sessionTtlMs: 1000, lastSeenIntervalMs: 1000, sessionCookieName: 'session', csrfCookieName: 'csrf', secureCookies: false, loginRateLimitWindowMs: 1000, loginRateLimitMaxAttempts: 1, confirmationActiveKid: 'k2', confirmationKeys: { k1: 'previous-secret-that-is-long-enough-0001', k2: 'current-secret-that-is-long-enough-00002' } };
@@ -59,5 +74,20 @@ describe('Hito 2B-2: confirmación HMAC', () => {
     const old = issueConfirmation({ ...config, confirmationActiveKid: 'k1' }, input);
     expect(verifyConfirmation(config, old.confirmationToken, input).kid).toBe('k1');
     expect(() => verifyConfirmation({ ...config, confirmationKeys: { k2: config.confirmationKeys!.k2! } }, old.confirmationToken, input)).toThrow();
+  });
+  it.each([
+    ['otro actor', { actorUserId: 'another-actor' }],
+    ['otra sesión', { authSessionId: 'another-session' }],
+    ['otro purpose', { purpose: 'ASSESSMENT_MAX_CHANGE' as const }],
+    ['otro recurso', { resourceId: 'another-task' }],
+    ['otro valor nuevo', { newValue: '12' }],
+  ])('rechaza token emitido para %s', (_case, change) => {
+    const { confirmationToken } = issueConfirmation(config, input);
+    expect(() => verifyConfirmation(config, confirmationToken, { ...input, ...change })).toThrowError(expect.objectContaining({ code: 'INVALID_CONFIRMATION' }));
+  });
+  it('rechaza kid desconocido aunque la firma sea válida para otra configuración', () => {
+    const other = { ...config, confirmationActiveKid: 'unknown', confirmationKeys: { ...config.confirmationKeys, unknown: 'unknown-kid-secret-long-enough-000001' } };
+    const { confirmationToken } = issueConfirmation(other, input);
+    expect(() => verifyConfirmation(config, confirmationToken, input)).toThrowError(expect.objectContaining({ code: 'INVALID_CONFIRMATION' }));
   });
 });

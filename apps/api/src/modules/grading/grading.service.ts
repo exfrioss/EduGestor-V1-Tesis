@@ -22,8 +22,8 @@ const scaleData = (row: any) => ({ id: row.id, institutionId: row.institutionId,
 export class GradingService {
   constructor(private readonly db: PrismaClient, private readonly config: AuthConfig) {}
 
-  private async transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
-    try { return await this.db.$transaction(work, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 }); }
+  private async transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>, isolationLevel: Prisma.TransactionIsolationLevel = Prisma.TransactionIsolationLevel.Serializable): Promise<T> {
+    try { return await this.db.$transaction(work, { isolationLevel, timeout: 20000 }); }
     catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError) {
         if (error.code === 'P2002' || error.code === 'P2004') throw fail(409, 'CONFLICT', 'Operación en conflicto');
@@ -204,6 +204,6 @@ export class GradingService {
       const row = kind === 'task' ? await tx.task.update({ where: { id: resourceId }, data: { maxPoints: decimal(input.newMaxPoints), rowVersion: { increment: 1 } } }) : await tx.assessment.update({ where: { id: resourceId }, data: { standaloneMaxPoints: decimal(input.newMaxPoints), rowVersion: { increment: 1 } } });
       await this.audit(tx, ctx, `${kind}.max-points.change`, kind === 'task' ? 'Task' : 'Assessment', resourceId, assignment.institutionId, { maxPoints: resource.max }, { maxPoints: input.newMaxPoints }, { affectedCount: snapshot.enrollments.length, overLimitCount: snapshot.pairs.filter(pair => pair.activityId === resourceId && pair.status === 'EVALUADO' && decimal(pair.earnedPoints!).greaterThan(input.newMaxPoints)).length, before, after });
       return { id: row.id, maxPoints: input.newMaxPoints, rowVersion: row.rowVersion, before, after };
-    });
+    }, Prisma.TransactionIsolationLevel.ReadCommitted);
   }
 }
