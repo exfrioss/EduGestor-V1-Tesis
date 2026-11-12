@@ -1,5 +1,13 @@
 # Changelog
 
+## 12/11/2026 — Hito 3A Asistencia aprobado como contrato documental
+
+- Se formalizó [ATT-3A-01](../architecture/DECISIONS.md) y se añadieron a API.md siete contratos REST de sesión, registro individual/lote y consultas por fecha, período, curso, materia y matrícula. La matriz A-01 a A-29 de TESTS.md es **prevista y no ejecutada**. No se modificaron RF/RNF ni se generaron código o migraciones.
+- Se aprobó `AttendanceStatus` de cuatro valores, `AttendanceSession` por asignación/fecha y `AttendanceRecord` único por sesión/matrícula; varias sesiones de una fecha son válidas. Fecha/asignación de sesión, vínculo sesión/matrícula del registro y `recordedById` creador son inmutables. Corrección conserva UUID, actualiza `rowVersion`/`updatedAt` y audita actor y before/after. No hay PATCH/DELETE físico ni marcas automáticas al crear sesión.
+- `isJustified=false` implica `justificationObservation=null`; false con texto no nulo se rechaza y true → false limpia el texto anterior. La observación general permanece independiente y justificar no altera el estado. Nueva marca requiere `Enrollment` compatible existente al escribir; `createdAt` no sirve como vigencia académica. Solo registros existentes certifican sesiones históricas; nuevas matrículas no generan marcas retrospectivas. Student inactivo conserva lectura y corrección de marca existente autorizada, sin nueva marca.
+- Se documentaron los permisos futuros `attendance.read` y `attendance.manage`, separados y sin concesión automática: catálogo 31 → 33 al implementarlos. La futura migración añadirá enum, dos modelos, FK restrictivas, único del registro, índices no únicos de sesión por asignación/fecha e historial, CHECK de justificación, integridad de curso/año y protección contra reasignación/borrado. Se reutilizarán las restricciones ya presentes en nueve migraciones.
+- UX aprobada **Materia → Asistencia** con fecha, sesiones existentes, tabla de 20–40 alumnos, marcas explícitas, lote atómico, filtros e historial. Siguen abiertas la equivalencia de clases del mismo día y la vigencia temporal de matrícula; no se agregaron hora/bloque, retiro, unicidad diaria, reportes PDF ni módulos fuera de 3A.
+
 ## 02/11/2026 — Hito 2B-2 implementado
 
 - La octava migración añade `GradingScale`, la referencia institucional nullable en `TeachingAssignment`, unicidad de versión y protección de versiones usadas. Ajusta los triggers de 2B-1 para permitir cambios de máximo solo dentro de la transacción confirmada.

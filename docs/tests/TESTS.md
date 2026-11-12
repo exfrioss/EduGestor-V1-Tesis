@@ -1,5 +1,43 @@
 # Pruebas técnicas y de persistencia
 
+## Matriz prevista — Hito 3A Asistencia (12/11/2026)
+
+**Estado: DISEÑADA, NO EJECUTADA.** A-01 a A-29 son identificadores de prueba, no RF/RNF nuevos ni resultados aprobados. Fuente RF-015, D-02/D-04, decisión [ATT-3A-01](../architecture/DECISIONS.md) y rutas de [API.md](../architecture/API.md). El catálogo vigente tiene 31 permisos y nueve migraciones; `AttendanceStatus`, `AttendanceSession`, `AttendanceRecord` y `attendance.read/manage` solo se implementarán en 3A. La regresión final de Hito 2B aceptado no constituye ejecución de ningún caso A.
+
+| Caso | Capa prevista | Verificación obligatoria |
+|---|---|---|
+| A-01 | PostgreSQL/API | Crear sesión propia con `classDate` y autor, auditar alta; sesión nueva sin `AttendanceRecord` ni marca implícita. |
+| A-02 | PostgreSQL/API | Dos sesiones de misma asignación/fecha conservan UUID y marcas independientes. No existe UNIQUE diario; impedir UPDATE de `classDate`/`teachingAssignmentId` desde creación, incluso sin registros; no PATCH/DELETE físico de sesión. |
+| A-03 | PostgreSQL/API | Guardar y recuperar `PRESENTE` explícito; falta de fila distinta de presente. |
+| A-04 | PostgreSQL/API | Guardar y recuperar `AUSENTE` explícito. |
+| A-05 | PostgreSQL/API | Guardar y recuperar `LLEGADA_TARDIA` explícita. |
+| A-06 | PostgreSQL/API | Guardar y recuperar `SALIDA_ANTICIPADA` explícita; rechazar estados fuera del enum. |
+| A-07 | Zod/PostgreSQL/API | `isJustified=true` admite observación justificativa opcional; justificar AUSENTE o tardanza no cambia estado. `false` exige `justificationObservation=null`: false con texto no nulo da `400 VALIDATION_ERROR` y CHECK SQL; true → false sin texto lo limpia automáticamente. |
+| A-08 | PostgreSQL/API | `observation` general se guarda, edita y elimina independientemente del estado y justificación; true → false no la borra. |
+| A-09 | API/RTL | Sesión o registro ausente no equivale a presente ni ausente; lista actual no se anuncia como hechos históricos certificados. |
+| A-10 | PostgreSQL concurrente/API | `UNIQUE(attendanceSessionId,enrollmentId)`: dos altas concurrentes dejan una fila, conflicto controlado y ninguna auditoría exitosa huérfana. |
+| A-11 | PostgreSQL/API | Matrícula inexistente o de otro curso/año se rechaza; comprobar contexto mediante SQL y servidor, no solo UUID. Para alta exigir Enrollment existente al escribir. |
+| A-12 | HTTP seguridad | Otro docente, incluso en mismo curso/materia, no consulta ni altera sesiones de asignación ajena. |
+| A-13 | HTTP seguridad | Scope de otro curso, institución ajena o UUID válido exterior no revela sesión, matrícula o historial. |
+| A-14 | PostgreSQL/API/auditoría | Corrección conserva UUID, `attendanceSessionId`, `enrollmentId` y `recordedById` creador; modifica `updatedAt`/`rowVersion`, audita actor de cada corrección con before/after y rechaza reasignación/DELETE físico. |
+| A-15 | PostgreSQL concurrente/API | Dos correcciones con igual versión: una gana y la otra recibe `409 STALE_VERSION`; no hay sobrescritura silenciosa. |
+| A-16 | PostgreSQL/API/RTL | Lote explícito de 20–40 alumnos: mismo contrato por fila; cambios y auditorías atómicos; matrícula repetida en body, incompatibilidad o versión vencida revierte todo. |
+| A-17 | PostgreSQL/API | Student inactivo conserva marcas e historial; no es elegible para marca nueva; corrección de marca existente solo con autorización vigente, versión y auditoría. |
+| A-18 | PostgreSQL/API | Matrícula creada tras sesión histórica no genera filas retroactivas. `Enrollment.createdAt` no autoriza ni rechaza por sí solo captura retrospectiva explícita; solo filas de asistencia existentes son hechos certificados. |
+| A-19 | HTTP/PostgreSQL | Asignación finalizada o institución/curso/materia inactivos bloquean nuevas operaciones docentes; historia permanece consultable para quien conserve autorización, sin mover/borrar sesión. |
+| A-20 | HTTP seguridad | Cookie de sesión, CSRF obligatorio en POST/PUT y `Cache-Control: no-store` en respuestas privadas. |
+| A-21 | HTTP/autorización | `attendance.read` y `attendance.manage` independientes; roles/demo sin grants nuevos, catálogo 31 → 33 e idempotencia de sincronización. |
+| A-22 | HTTP/API | Consulta por día y rango inclusivo, con varias sesiones del día, filtros válidos/invalidaciones y paginación contextual. |
+| A-23 | HTTP/API | Consulta por curso/materia y por matrícula identifica cada sesión, no filtra otras instituciones o asignaciones; lectura histórica no infiere nómina. |
+| A-24 | RTL | Materia → Asistencia: fecha, sesiones del día, 20–40 filas, cuatro estados y sin marcar, justificación y observación separadas, acción explícita «Marcar presentes sin registrar», lote, conflicto y limpieza true → false. No ofrecer PATCH/DELETE de sesión. |
+| A-25 | Playwright real | Login docente → materia → crear sesión → marcar/guardar lote → consultar fecha e historial; rechazar sesión/curso ajenos y mantener historia real. |
+| A-26 | Regresión real | Hito 1: login, permisos, instituciones, curso, materia, asignación y consulta propia. |
+| A-27 | Regresión real | Infraestructura curricular: materias sin malla, correspondencias y aislamiento intactos. |
+| A-28 | Regresión real | Hito 2A: identidad Student, Enrollment, búsqueda/nómina e historia contextual. |
+| A-29 | Regresión real | Hito 2B: tareas, resultados, escala, nota formal, preview/confirmación y Proceso sin reinterpretación. |
+
+La verificación futura debe aplicar las diez migraciones desde PostgreSQL vacío, confirmar `prisma validate/generate` y `migrate status`, ejecutar Vitest/Supertest con `RUN_DATABASE_TESTS=1`, RTL, E2E simulado/real, typecheck y build, además de las regresiones A-26 a A-29. Registrar cifras **solo después** de ejecutarlas. No sumar resultados históricos de 2B a esta matriz ni afirmar que la suite ordinaria ejecutó las pruebas PostgreSQL omitidas por configuración. Los conflictos concurrentes, CHECK, FK, triggers e inmutabilidad se verifican en base real. No se ensayan módulos fuera de 3A como condición de aceptación de asistencia.
+
 ## Matriz prevista — Hito 2B Tareas, Evaluaciones y Proceso (06/10/2026)
 
 **Estado: 2B-1 ejecutado el 06/10/2026 y 2B-2 ejecutado el 02/11/2026.** Los IDs son identificadores de prueba, no RF/RNF nuevos. `2B-1` = banco, tarea, evaluación, resultado, Proceso sin nota; `2B-2` = escala, conversión/redondeo, cambios confirmados y nota. Contratos completos en [API.md](../architecture/API.md), decisión [ACAD-2B-01](../architecture/DECISIONS.md). Las pruebas DB se ejecutaron en PostgreSQL aislado; la suite ordinaria las omite si `RUN_DATABASE_TESTS` no está definido.

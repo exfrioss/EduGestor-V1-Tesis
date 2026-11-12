@@ -1,5 +1,16 @@
 # Decisiones de arquitectura
 
+## ATT-3A-01 — Hito 3A: asistencia por sesión y matrícula
+
+**Estado:** diseño aprobado el 12/11/2026; implementación y pruebas pendientes. **Tipo:** precisión técnica de RF-015, D-02/D-04 y RF-025, sin agregar RF/RNF ni reabrir decisiones resueltas. Contratos en [API.md](API.md), sección «Hito 3A»; pruebas previstas A-01 a A-29 en [TESTS.md](../tests/TESTS.md).
+
+- La unidad de asistencia es `AttendanceSession`, no el día. Una `TeachingAssignment` puede tener varias sesiones con igual `classDate`, cada una con UUID propio; no existe `UNIQUE(teachingAssignmentId, classDate)`. `teachingAssignmentId` y `classDate` son inmutables desde el alta. No hay PATCH ni DELETE físico de sesión, y su creación no genera registros individuales.
+- `AttendanceRecord` representa una marca explícita sobre un `Enrollment` compatible con el curso y año lectivo de la asignación. `UNIQUE(attendanceSessionId, enrollmentId)`; ambos identificadores son inmutables. Las correcciones conservan UUID y `recordedById`, que identifica exclusivamente al creador original; `updatedAt` y `rowVersion` reflejan modificación y concurrencia. `AuditLog` registra actor y before/after de cada corrección en la misma transacción.
+- `AttendanceStatus` contiene solo `PRESENTE`, `AUSENTE`, `LLEGADA_TARDIA` y `SALIDA_ANTICIPADA`. `isJustified=false` exige `justificationObservation=null`; `isJustified=true` permite observación justificativa opcional. Cambiar de true a false limpia esa observación en la misma escritura. La observación general es independiente y justificar no cambia el estado.
+- Para crear una marca debe existir al escribir una matrícula compatible. `Enrollment.createdAt` no es fecha efectiva de pertenencia ni autoriza o prohíbe por sí mismo una captura retrospectiva. Una matrícula posterior no crea marcas retroactivas. Solo los `AttendanceRecord` existentes certifican hechos de la sesión histórica; la nómina actual es ayuda operativa, no reconstrucción histórica certificada.
+- Se aprueban `attendance.read` y `attendance.manage` como permisos independientes, sin concesiones automáticas; el catálogo real pasa de 31 a 33 únicamente cuando se implementen y sin implicación manage → read. El docente necesita cuenta, docente, vínculo institucional y asignación propia vigentes, además de permiso y ámbito efectivos. Sesión/CSRF, resolución del contexto desde PostgreSQL, integridad persistente y auditoría protegen las escrituras.
+- La captura individual y por lote, las consultas por sesión, fecha, período, curso, materia y matrícula, y la UX **Materia → Asistencia** quedan especificadas en API.md. El lote es atómico y cada marca usa control de versión. No se presume una sola clase diaria ni una vigencia temporal o estado de retiro de Enrollment. Impresión/PDF y los demás módulos excluidos se mantienen fuera de 3A.
+
 ## ACAD-2B-01 — Hito 2B: resultado único, escala versionada y confirmación reproducible
 
 **Estado:** diseño aprobado el 06/10/2026; 2B-1 y 2B-2 implementados y probados, este último el 02/11/2026. **Tipo:** precisión de RF-009–RF-014 y D-01/D-03, sin nuevos RF/RNF ni reapertura de D-01 a D-07. Contratos completos en [API.md](API.md), sección «Hito 2B»; evidencia en [TESTS.md](../tests/TESTS.md), matriz B-01 a B-27.
