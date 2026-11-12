@@ -16,6 +16,7 @@ import { MyAssignmentsPage } from './pages/teacher/MyAssignmentsPage';
 import { RouteFocus } from './components/RouteFocus';
 import { StudentsPage } from './pages/StudentsPage';
 import { ActivitiesPage, ProcessPage } from './pages/teacher/ActivitiesPage';
+import { AttendancePage } from './pages/teacher/AttendancePage';
 
 export function App() {
   const [queryClient] = useState(() => new QueryClient({
@@ -35,7 +36,7 @@ export function App() {
           <Route path="institutions/:institutionId/assignments" element={<AssignmentsPage />} />
         </Route>
       </Route>
-      <Route path="teacher" element={<TeacherLayout />}><Route path="assignments" element={<MyAssignmentsPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/students" element={<StudentsPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/activities" element={<ActivitiesPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/process" element={<ProcessPage />} /></Route>
+      <Route path="teacher" element={<TeacherLayout />}><Route path="assignments" element={<MyAssignmentsPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/students" element={<StudentsPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/activities" element={<ActivitiesPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/process" element={<ProcessPage />} /><Route path="institutions/:institutionId/courses/:courseId/assignments/:assignmentId/attendance" element={<AttendancePage />} /></Route>
       <Route path="forbidden" element={<ForbiddenPage />} />
     </Route>
     <Route path="*" element={<NotFoundPage />} />

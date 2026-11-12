@@ -151,7 +151,7 @@ La evolución del catálogo es: Hito 1, 13 permisos; checkpoint curricular, 17; 
 npm run bootstrap:authorization-catalog -w @edugestor/api
 ```
 
-El catálogo vigente contiene 31 permisos y todavía no incluye asistencia, planificación ni IA. Hito 3A propone `attendance.read` y `attendance.manage`; el catálogo llegará a 33 únicamente cuando se implementen.
+El catálogo vigente contiene 33 permisos, incluidos `attendance.read` y `attendance.manage` de Hito 3A; todavía no incluye planificación ni IA.
 
 ## Núcleo institucional y académico Hito 1
 
@@ -629,7 +629,7 @@ No se incluyen asistencia, anecdótico, Conducta, informes grupales, consulta p�
 
 ## Contratos aprobados — Hito 3A: Asistencia (12/11/2026)
 
-**Estado: diseño aprobado; no implementado ni probado.** Esta sección concreta RF-015 y D-02/D-04 sobre las matrículas reales de Hito 2A, sin nuevos RF/RNF. El paquete vigente contiene nueve migraciones y 31 permisos; no contiene tablas, permisos ni rutas de asistencia. La decisión es [ATT-3A-01](DECISIONS.md) y la matriz A-01 a A-29 de [TESTS.md](../tests/TESTS.md) está **prevista, no ejecutada**. Las menciones históricas anteriores al catálogo de escala no sustituyen el catálogo TypeScript vigente de 31 permisos.
+**Estado: implementado y probado el 12/11/2026.** Esta sección concreta RF-015 y D-02/D-04 sobre las matrículas reales de Hito 2A, sin nuevos RF/RNF. El paquete vigente contiene diez migraciones y 33 permisos, con las siete rutas de asistencia aprobadas. La decisión es [ATT-3A-01](DECISIONS.md) y la matriz A-01 a A-29 de [TESTS.md](../tests/TESTS.md) registra su ejecución. Las menciones históricas anteriores al catálogo de asistencia no sustituyen el catálogo TypeScript vigente de 33 permisos.
 
 ### Modelo, unidad de registro e historia
 
@@ -643,7 +643,7 @@ Para crear una marca debe existir **al momento de escribir** un `Enrollment` com
 
 ### Permisos, ámbito y seguridad
 
-Se incorporarán **en la implementación futura** `attendance.read` y `attendance.manage`: dos códigos singulares `recurso.acción`, separados, sin implicación manage → read. El catálogo pasará de 31 a 33 al sincronizarse idempotentemente. No se conceden automáticamente al demo, roles ni usuarios existentes. Mostrar nombres y matrículas requiere además `student.read` y `enrollment.read` efectivos; una acción de marcar requiere `attendance.manage` y lectura de la matrícula contextual. Ocultar controles en la UI no concede ni deniega acceso en el servidor.
+Se incorporaron `attendance.read` y `attendance.manage`: dos códigos singulares `recurso.acción`, separados, sin implicación manage → read. El catálogo pasó de 31 a 33 con sincronización idempotente. No se conceden automáticamente al demo, roles ni usuarios existentes. Mostrar nombres y matrículas requiere además `student.read` y `enrollment.read` efectivos; una acción de marcar requiere `attendance.manage` y lectura de la matrícula contextual. Ocultar controles en la UI no concede ni deniega acceso en el servidor.
 
 Para el docente, cada lectura y escritura requiere cuenta y docente activos, `TeacherInstitution` vigente, `TeachingAssignment` **propia vigente**, permisos y scope efectivos; la institución, curso y materia deben estar operativos para crear sesiones o nuevas marcas. `Student` inactivo conserva historia legible con autorización y no puede seleccionarse para una marca nueva; corregir un `AttendanceRecord` existente es posible con autorización vigente, versión coincidente y auditoría. Una asignación finalizada no habilita operaciones docentes ordinarias. Una lectura administrativa requiere permisos explícitos y ámbito que cubra el curso real; no hay corrección administrativa implícita por rol. `RESOURCE_SET` continúa sin implementar.
 
