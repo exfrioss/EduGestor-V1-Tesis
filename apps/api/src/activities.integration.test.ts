@@ -366,7 +366,7 @@ describeDatabase('B-01–B-27, checkpoint 2B-1, PostgreSQL real', () => {
     const newCodes = ['activity-bank.read', 'activity-bank.manage', 'task.read', 'task.manage', 'assessment.read', 'assessment.manage', 'assessment-result.read', 'assessment-result.manage'];
     expect(PERMISSION_CATALOG.slice(0, 21)).toHaveLength(21);
     expect(PERMISSION_CATALOG.slice(21, 29).map(item => item.code)).toEqual(newCodes);
-    expect(PERMISSION_CATALOG.slice(29).map(item => item.code)).toEqual(['grading-scale.read', 'grading-scale.manage']);
+    expect(PERMISSION_CATALOG.slice(29, 31).map(item => item.code)).toEqual(['grading-scale.read', 'grading-scale.manage']);
     expect(await db.roleAssignmentPermission.count({ where: { assignment: { role: { code: 'HITO1_DEMO_INSTITUTION_ADMIN' } }, permission: { code: { in: newCodes } } } })).toBe(0);
     const grant = await db.roleAssignmentPermission.findFirstOrThrow({ where: { assignment: { userId: teacherB.id }, permission: { code: 'task.manage' } } });
     await db.roleAssignmentPermission.update({ where: { id: grant.id }, data: { revokedAt: new Date() } });

@@ -1,8 +1,8 @@
 # Pruebas técnicas y de persistencia
 
-## Matriz prevista — Hito 3A Asistencia (12/11/2026)
+## Matriz ejecutada — Hito 3A Asistencia (12/11/2026)
 
-**Estado: DISEÑADA, NO EJECUTADA.** A-01 a A-29 son identificadores de prueba, no RF/RNF nuevos ni resultados aprobados. Fuente RF-015, D-02/D-04, decisión [ATT-3A-01](../architecture/DECISIONS.md) y rutas de [API.md](../architecture/API.md). El catálogo vigente tiene 31 permisos y nueve migraciones; `AttendanceStatus`, `AttendanceSession`, `AttendanceRecord` y `attendance.read/manage` solo se implementarán en 3A. La regresión final de Hito 2B aceptado no constituye ejecución de ningún caso A.
+**Estado: EJECUTADA.** A-01 a A-29 son identificadores de prueba, no RF/RNF nuevos. Fuente RF-015, D-02/D-04, decisión [ATT-3A-01](../architecture/DECISIONS.md) y rutas de [API.md](../architecture/API.md). El catálogo implementado tiene 33 permisos y diez migraciones. Las pruebas de este checkpoint se ejecutaron de nuevo; las cifras históricas de Hito 2B no se sumaron a esta matriz.
 
 | Caso | Capa prevista | Verificación obligatoria |
 |---|---|---|
@@ -36,7 +36,23 @@
 | A-28 | Regresión real | Hito 2A: identidad Student, Enrollment, búsqueda/nómina e historia contextual. |
 | A-29 | Regresión real | Hito 2B: tareas, resultados, escala, nota formal, preview/confirmación y Proceso sin reinterpretación. |
 
-La verificación futura debe aplicar las diez migraciones desde PostgreSQL vacío, confirmar `prisma validate/generate` y `migrate status`, ejecutar Vitest/Supertest con `RUN_DATABASE_TESTS=1`, RTL, E2E simulado/real, typecheck y build, además de las regresiones A-26 a A-29. Registrar cifras **solo después** de ejecutarlas. No sumar resultados históricos de 2B a esta matriz ni afirmar que la suite ordinaria ejecutó las pruebas PostgreSQL omitidas por configuración. Los conflictos concurrentes, CHECK, FK, triggers e inmutabilidad se verifican en base real. No se ensayan módulos fuera de 3A como condición de aceptación de asistencia.
+### Evidencia de ejecución de A-01 a A-29
+
+| Casos | Resultado y evidencia del 12/11/2026 |
+|---|---|
+| A-01–A-02 | Aprobados: dos sesiones de igual fecha con UUID diferentes, alta auditada sin registros, fecha/asignación inmutables, sin PATCH/DELETE. |
+| A-03–A-09 | Aprobados: cuatro estados explícitos y ausencia de fila distinta de marca; validación Zod/CHECK de justificación, limpieza true → false, observación general independiente y nómina histórica identificada como ayuda de captura. |
+| A-10–A-15 | Aprobados en PostgreSQL/Supertest: alta y corrección concurrentes 201/409 y 200/409, UNIQUE final, auditoría única, curso/año incompatible en API y trigger SQL, aislamiento de otro docente/scope/institución, creador y contexto inmutables, before/after. |
+| A-16–A-18 | Aprobados: lote de 30 registros atómico; duplicado, matrícula incompatible o versión obsoleta revierten el lote; Student inactivo legible y corregible con versión, sin nueva marca; matrícula posterior sin filas automáticas y captura retrospectiva explícita válida. |
+| A-19–A-23 | Aprobados: asignación finalizada e institución/curso/materia inactivos bloquean nueva operación, administración con grants expresos lee historia; cookie, CSRF y no-store; 33 permisos separados, sin grants demo e idempotencia; filtros inclusivos, error de mezcla, cursor por sesión/curso, consulta por materia y matrícula contextual. |
+| A-24 | Aprobado en dos pruebas RTL: tabla de 40, sin marcar, acción explícita solo sobre filas nuevas, lote, limpieza de observación justificativa con la general intacta y recarga por STALE_VERSION. La interfaz ofrece los cuatro estados y no ofrece edición/borrado de sesión. |
+| A-25 | Aprobado en Chrome contra React/Express/PostgreSQL reales: login → materia → sesión sin marcas automáticas → lote → consulta por fecha/historial; asignación y curso ajenos rechazados. |
+| A-26 | Aprobado en E2E real de Hito 1 con fixture ficticio de la base desechable. |
+| A-27 | Aprobado en E2E real de currículo y correspondencias. |
+| A-28 | Aprobado en E2E real de Student/Enrollment, nómina y perfil contextual. |
+| A-29 | Aprobado en dos E2E reales de actividades/Proceso y escala/confirmación entre dos API. |
+
+`prisma validate` y `prisma generate` aprobaron. Las diez migraciones se aplicaron desde PostgreSQL vacío en `edugestor_hito3a_codex_20261112_01` y `prisma migrate status` confirmó esquema al día. La suite API con `RUN_DATABASE_TESTS=1` aprobó **132/132 pruebas en 18 archivos**, incluida la matriz A agrupada en 11 pruebas de integración. `npm test` aprobó Shared **1/1**, API ordinaria **32/32** con **100 pruebas DB omitidas** por configuración, y Web **21/21**. Typecheck y build aprobaron los tres workspaces; E2E simulado **1/1**. `npm run test:e2e:real -- --workers=1` aprobó **6/6**. Una primera corrida real paralela pasó 5/6 por un puerto temporal no disponible en el test de escala; su repetición aislada aprobó. La integración API retiró la fixture sintética de Hito 1 de la misma base desechable y causó un fallo de login en la primera corrida secuencial; se repuso la fixture y los seis E2E reales aprobaron juntos. Las bases fueron exclusivamente desechables; no se usó una base productiva.
 
 ## Matriz prevista — Hito 2B Tareas, Evaluaciones y Proceso (06/10/2026)
 

@@ -45,6 +45,13 @@ enum AssessmentResultStatus {
   EVALUADO
 }
 
+enum AttendanceStatus {
+  PRESENTE
+  AUSENTE
+  LLEGADA_TARDIA
+  SALIDA_ANTICIPADA
+}
+
 model User {
   id              String      @id @default(uuid()) @db.Uuid
   login           String      @db.Text
@@ -75,6 +82,8 @@ model User {
   assessmentsCreated       Assessment[]               @relation("AssessmentCreatedBy")
   resultsEvaluated         AssessmentResult[]         @relation("ResultEvaluatedBy")
   gradingScalesCreated     GradingScale[]             @relation("GradingScaleCreatedBy")
+  attendanceSessionsCreated AttendanceSession[]       @relation("AttendanceSessionCreatedBy")
+  attendanceRecordsCreated  AttendanceRecord[]        @relation("AttendanceRecordCreatedBy")
   auditLogs                 AuditLog[]                 @relation("AuditActor")
 }
 
@@ -357,6 +366,7 @@ model Enrollment {
   course       Course       @relation(fields: [courseId, academicYearId], references: [id, academicYearId], onDelete: Restrict)
   academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Restrict)
   assessmentResults AssessmentResult[]
+  attendanceRecords AttendanceRecord[]
 
   @@unique([studentId, courseId, academicYearId])
   @@index([courseId, academicYearId])
@@ -451,12 +461,50 @@ model TeachingAssignment {
   gradingScale GradingScale? @relation(fields: [gradingScaleId, institutionId], references: [id, institutionId], onDelete: Restrict)
   tasks       Task[]
   assessments Assessment[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([teacherId, courseId, subjectId])
   @@index([teacherId, endedAt])
   @@index([courseId, subjectId])
   @@index([institutionId])
   @@index([gradingScaleId])
+}
+
+model AttendanceSession {
+  id                   String   @id @default(uuid()) @db.Uuid
+  teachingAssignmentId String   @db.Uuid
+  classDate            DateTime @db.Date
+  createdById          String   @db.Uuid
+  createdAt            DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime @updatedAt @db.Timestamptz(3)
+  rowVersion           Int      @default(1)
+
+  teachingAssignment TeachingAssignment @relation(fields: [teachingAssignmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  createdBy          User               @relation("AttendanceSessionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  records            AttendanceRecord[]
+
+  @@index([teachingAssignmentId, classDate])
+}
+
+model AttendanceRecord {
+  id                       String           @id @default(uuid()) @db.Uuid
+  attendanceSessionId      String           @db.Uuid
+  enrollmentId             String           @db.Uuid
+  status                   AttendanceStatus
+  isJustified              Boolean          @default(false)
+  justificationObservation String?          @db.Text
+  observation              String?          @db.Text
+  recordedById             String           @db.Uuid
+  createdAt                DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime         @updatedAt @db.Timestamptz(3)
+  rowVersion               Int              @default(1)
+
+  session    AttendanceSession @relation(fields: [attendanceSessionId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  enrollment Enrollment        @relation(fields: [enrollmentId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  recordedBy User              @relation("AttendanceRecordCreatedBy", fields: [recordedById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([attendanceSessionId, enrollmentId])
+  @@index([enrollmentId, attendanceSessionId])
 }
 
 model GradingScale {

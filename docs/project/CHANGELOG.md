@@ -1,5 +1,12 @@
 # Changelog
 
+## 12/11/2026 — Hito 3A Asistencia implementado y verificado
+
+- Se añadió la décima migración `20261112120000_hito3a_attendance` con enum de cuatro estados, sesión por asignación/fecha y registro único por sesión/matrícula. Incluye FK restrictivas, índice no único de sesiones por fecha, índice de historial, CHECK de justificación y triggers de contexto, inmutabilidad y no eliminación física. No duplica las FK compuestas previas de curso/año/institución y matrícula/curso/año.
+- Se agregaron `attendance.read` y `attendance.manage` al catálogo (33 códigos), sin grants demo automáticos. La API implementa las siete rutas aprobadas con autorización por asignación y curso reales, sesión, CSRF, auditoría transaccional, versión optimista, lote atómico y reintentos serializables acotados. La UX Materia → Asistencia separa «sin marcar» de los cuatro estados, guarda lote explícito y muestra fecha, período e historial.
+- Validación en PostgreSQL desechable: diez migraciones desde cero, `prisma validate/generate`, `migrate status` al día, API con DB real 132/132 en 18 archivos. `npm test` aprobó Shared 1/1, API 32/32 con 100 DB omitidas por configuración y Web 21/21. Typecheck, build y E2E simulado aprobaron; E2E real 6/6 con un worker confirmó Hito 1, currículo, 2A, 2B y 3A. Una primera corrida E2E paralela encontró un puerto temporal no disponible en la prueba de escala; la prueba aislada aprobó. La integración API eliminó luego la fixture sintética de Hito 1 de la misma base desechable y causó un fallo de login en la primera repetición secuencial; se repuso la fixture y la corrida completa aprobó.
+- Se actualizaron los resultados A-01 a A-29 en TESTS.md. REQUIREMENTS.md, DATABASE.md y PROJECT_MASTER.md no se modificaron. No hubo commit, merge ni tag.
+
 ## 12/11/2026 — Hito 3A Asistencia aprobado como contrato documental
 
 - Se formalizó [ATT-3A-01](../architecture/DECISIONS.md) y se añadieron a API.md siete contratos REST de sesión, registro individual/lote y consultas por fecha, período, curso, materia y matrícula. La matriz A-01 a A-29 de TESTS.md es **prevista y no ejecutada**. No se modificaron RF/RNF ni se generaron código o migraciones.
